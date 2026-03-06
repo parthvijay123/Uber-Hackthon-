@@ -1,0 +1,13 @@
+flag_id,trip_id,driver_id,timestamp,elapsed_seconds,flag_type,severity,motion_score,audio_score,combined_score,explanation,context
+AFLAG_001,TRIP001,DRV107,2024-02-06 07:02:30,1050,harsh_braking,medium,2.42,,,Sudden deceleration detected (2.42 m/s²). Speed dropped.,Motion: harsh_braking
+AFLAG_002,TRIP002,DRV188,2024-02-06 07:22:00,420,harsh_braking,medium,5.22,,,Sudden deceleration detected (5.22 m/s²). Speed dropped.,Motion: harsh_braking
+AFLAG_003,TRIP002,DRV188,2024-02-06 07:22:30,450,crash,high,7.22,,,Massive spike in G-force (7.22 m/s²). Potential collision.,Motion: crash
+AFLAG_004,TRIP002,DRV188,2024-02-06 07:23:00,480,crash,high,8.03,,,Massive spike in G-force (8.03 m/s²). Potential collision.,Motion: crash
+AFLAG_005,TRIP002,DRV188,2024-02-06 07:23:30,510,harsh_acceleration,medium,4.78,,,Aggressive forward surge detected (4.78 m/s²). Speed increased.,Motion: harsh_acceleration
+AFLAG_006,TRIP002,DRV188,2024-02-06 07:24:00,540,harsh_acceleration,medium,2.58,,,Aggressive forward surge detected (2.58 m/s²). Speed increased.,Motion: harsh_acceleration
+AFLAG_007,TRIP010,DRV145,2024-02-06 19:22:00,1020,harsh_braking,medium,4.78,,,Sudden deceleration detected (4.78 m/s²). Speed dropped.,Motion: harsh_braking
+AFLAG_008,TRIP010,DRV145,2024-02-06 19:22:30,1050,crash,high,6.62,,,Massive spike in G-force (6.62 m/s²). Potential collision.,Motion: crash
+AFLAG_009,TRIP010,DRV145,2024-02-06 19:23:00,1080,crash,high,8.68,,,Massive spike in G-force (8.68 m/s²). Potential collision.,Motion: crash
+AFLAG_010,TRIP010,DRV145,2024-02-06 19:23:30,1110,harsh_acceleration,medium,5.76,,,Aggressive forward surge detected (5.76 m/s²). Speed increased.,Motion: harsh_acceleration
+AFLAG_011,TRIP010,DRV145,2024-02-06 19:24:00,1140,harsh_acceleration,medium,3.5,,,Aggressive forward surge detected (3.50 m/s²). Speed increased.,Motion: harsh_acceleration
+AFLAG_012,TRIP010,DRV145,2024-02-06 19:30:00,1500,sustained_spike,low,0.58,,,Sustained elevated motion/erratic driving detected.,Motion: sustained_spike
