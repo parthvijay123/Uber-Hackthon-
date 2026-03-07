@@ -52,39 +52,81 @@ It calculates the current Earnings Per Hour (EPH) and projects whether the drive
 ## 4. System Architecture Diagram
 
 ```mermaid
-graph TD
-    %% Edge Layer
-    subgraph Edge Device
-        A[Microphone] -->|Raw Audio| B[Local Audio Engine]
-        B -->|Destroyed immediately| C[Empty]
-        B -->|dB Intensity Array| D[(Local Edge DB)]
+flowchart TB
+    %% Styling
+    classDef hardware fill:#f9f9f9,stroke:#666,stroke-width:2px,color:#333
+    classDef software fill:#e1f5fe,stroke:#0288d1,stroke-width:2px,color:#000
+    classDef storage fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000
+    classDef cloudApp fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#000
+    classDef ui fill:#fce4ec,stroke:#c2185b,stroke-width:2px,color:#000
+
+    %% Edge Computing Layer
+    subgraph EdgeDevice ["📱 Driver's Phone (Edge Computing)"]
+        direction TB
         
-        E[Accelerometer] -->|50Hz Data| F[Low-Pass Filter]
-        F -->|Filtered Data| D
-        
-        G[GPS Module] -->|Coordinates| D
-        
-        D -->|Store & Forward Sync| H[Upload Manager]
+        subgraph Sensors ["Sensor Hardware"]
+            direction LR
+            Mic["🎙️ Microphone"]:::hardware
+            Accel["📳 Accelerometer"]:::hardware
+            GPS["📍 GPS Module"]:::hardware
+        end
+
+        subgraph EdgeProcessing ["On-Device Processing"]
+            direction LR
+            AudioProcess["🔊 Local Audio Engine \n (Converts to dB, Deletes Audio)"]:::software
+            MotionFilter["📉 Low-Pass Filter \n (Smooths Vibrations)"]:::software
+        end
+
+        LocalDB[("💾 Local Edge DB \n (SQLite)")]:::storage
+        SyncManager["📡 Store & Forward Sync"]:::software
+
+        %% Edge Connections
+        Mic --> AudioProcess
+        Accel --> MotionFilter
+        GPS --> LocalDB
+        AudioProcess --> LocalDB
+        MotionFilter --> LocalDB
+        LocalDB --> SyncManager
     end
 
-    %% Cloud Layer
-    subgraph Cloud Backend
-        H -.->|Cellular/WiFi Upload| I[API Gateway]
-        I --> J[Message Queue]
+    %% Network Barrier
+    Internet(("🌐 Cellular/WiFi \n (Post-Trip Upload)")):::hardware
+    SyncManager -.-> Internet
+
+    %% Cloud Processing Layer
+    subgraph CloudBackend ["☁️ Cloud Backend (Data Fusion)"]
+        direction TB
         
-        J --> K[Pulse Heuristic Engine]
-        J --> L[Earnings Forecaster]
+        Gateway["🚪 API Gateway"]:::cloudApp
+        MQ[("📨 Message Queue \n (Kafka/SQS)")]:::storage
         
-        K -->|Data Fusion / Flags| M[(Flagged Moments DB)]
-        L -->|EPH Projections| N[(Earnings DB)]
+        subgraph Engines ["Core Analytical Engines"]
+            direction LR
+            PulseEngine["🚨 Pulse Heuristic Engine \n (Detects 'High Tension')"]:::cloudApp
+            FinanceEngine["💰 Earnings Forecaster \n (Calculates Velocity)"]:::cloudApp
+        end
+
+        FlagDB[("🚩 Flagged Moments DB")]:::storage
+        EarnDB[("🏦 Earnings DB")]:::storage
+
+        %% Cloud Connections
+        Gateway --> MQ
+        MQ --> PulseEngine
+        MQ --> FinanceEngine
+        PulseEngine --> FlagDB
+        FinanceEngine --> EarnDB
     end
 
-    %% Delivery
-    subgraph App UI
-        M --> O[Post-Trip Dashboard]
-        N --> O
-        O -.->|Zero-Distraction Update| Edge Device
+    Internet -.-> Gateway
+
+    %% Post-Trip UI Layer
+    subgraph UserInterface ["🖥️ Post-Trip Experience"]
+        Dashboard["📊 Driver Pulse Dashboard \n (Zero-Distraction UI)"]:::ui
     end
+
+    FlagDB --> Dashboard
+    EarnDB --> Dashboard
+    Dashboard -.->|Updates visible ONLY \n after trip ends| EdgeDevice
 ```
 
 ### Understanding the Diagram
