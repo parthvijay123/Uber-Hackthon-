@@ -59,7 +59,7 @@ def simulate_audio_stream(input_file, output_file):
                         'event_type': 'Sustained Loud Noise',
                         'magnitude': round(buffer_avg_db, 2)
                     })
-                    print(f"[{trip}] 🔊 Sustained Loud Noise ({round(buffer_avg_db, 1)}dB) Detected at {event_time.strftime('%H:%M:%S')}")
+                    print(f"[{trip}] Sustained Loud Noise ({round(buffer_avg_db, 1)}dB) Detected at {event_time.strftime('%H:%M:%S')}")
 
             # Slide window forward
             current_window_start = current_window_end
