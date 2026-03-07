@@ -75,7 +75,7 @@ def simulate_accelerometer_stream(input_file, output_file):
                         'event_type': 'Collision / Severe Impact',
                         'magnitude': round(collision_events.iloc[0]['horizontal_magnitude'], 2)
                     })
-                    print(f"[{trip}] 💥 COLLISION DETECTED at {event_time.strftime('%H:%M:%S')}")
+                    print(f"[{trip}] COLLISION DETECTED at {event_time.strftime('%H:%M:%S')}")
 
                 # Check for Harsh Braking (High force + Negative speed change)
                 braking_events = buffer_df[(buffer_df['horizontal_magnitude'] >= MAGNITUDE_THRESHOLD) & 
@@ -91,7 +91,7 @@ def simulate_accelerometer_stream(input_file, output_file):
                         'event_type': 'Harsh Braking',
                         'magnitude': round(braking_events.iloc[0]['horizontal_magnitude'], 2)
                     })
-                    print(f"[{trip}] 🚨 Harsh Brake Detected at {event_time.strftime('%H:%M:%S')}")
+                    print(f"[{trip}] Harsh Brake Detected at {event_time.strftime('%H:%M:%S')}")
                 
                 # Check for Rapid Acceleration (High force + Positive speed change)
                 accel_events = buffer_df[(buffer_df['horizontal_magnitude'] >= MAGNITUDE_THRESHOLD) & 
@@ -106,7 +106,7 @@ def simulate_accelerometer_stream(input_file, output_file):
                         'event_type': 'Rapid Acceleration',
                         'magnitude': round(accel_events.iloc[0]['horizontal_magnitude'], 2)
                     })
-                    print(f"[{trip}] 🏎️ Rapid Acceleration Detected at {event_time.strftime('%H:%M:%S')}")
+                    print(f"[{trip}] Rapid Acceleration Detected at {event_time.strftime('%H:%M:%S')}")
 
             # Slide the window forward by 15 seconds
             current_window_start = current_window_end
