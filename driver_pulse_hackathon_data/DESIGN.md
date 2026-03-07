@@ -61,24 +61,24 @@ flowchart TB
     classDef ui fill:#fce4ec,stroke:#c2185b,stroke-width:2px,color:#000
 
     %% Edge Computing Layer
-    subgraph EdgeDevice ["📱 Driver's Phone (Edge Computing)"]
+    subgraph EdgeDevice ["Edge Computing: Phone"]
         direction TB
         
-        subgraph Sensors ["Sensor Hardware"]
+        subgraph Sensors ["Hardware"]
             direction LR
-            Mic["🎙️ Microphone"]:::hardware
-            Accel["📳 Accelerometer"]:::hardware
-            GPS["📍 GPS Module"]:::hardware
+            Mic["Microphone"]:::hardware
+            Accel["Accelerometer"]:::hardware
+            GPS["GPS Module"]:::hardware
         end
 
-        subgraph EdgeProcessing ["On-Device Processing"]
-            direction LR
-            AudioProcess["🔊 Local Audio Engine \n (Converts to dB, Deletes Audio)"]:::software
-            MotionFilter["📉 Low-Pass Filter \n (Smooths Vibrations)"]:::software
+        subgraph EdgeProcessing ["Processing"]
+            direction TB
+            AudioProcess["Audio Engine<br>(Calculates dB,<br>Deletes Audio)"]:::software
+            MotionFilter["Low-Pass Filter<br>(Smooths Data)"]:::software
         end
 
-        LocalDB[("💾 Local Edge DB \n (SQLite)")]:::storage
-        SyncManager["📡 Store & Forward Sync"]:::software
+        LocalDB[("Local Edge DB<br>(SQLite)")]:::storage
+        SyncManager["Store & Forward<br>Sync Manager"]:::software
 
         %% Edge Connections
         Mic --> AudioProcess
@@ -90,24 +90,24 @@ flowchart TB
     end
 
     %% Network Barrier
-    Internet(("🌐 Cellular/WiFi \n (Post-Trip Upload)")):::hardware
+    Internet(("Cellular/WiFi<br>(Post-Trip)")):::hardware
     SyncManager -.-> Internet
 
     %% Cloud Processing Layer
-    subgraph CloudBackend ["☁️ Cloud Backend (Data Fusion)"]
+    subgraph CloudBackend ["Cloud Backend"]
         direction TB
         
-        Gateway["🚪 API Gateway"]:::cloudApp
-        MQ[("📨 Message Queue \n (Kafka/SQS)")]:::storage
+        Gateway["API Gateway"]:::cloudApp
+        MQ[("Message Queue<br>(Kafka/SQS)")]:::storage
         
         subgraph Engines ["Core Analytical Engines"]
-            direction LR
-            PulseEngine["🚨 Pulse Heuristic Engine \n (Detects 'High Tension')"]:::cloudApp
-            FinanceEngine["💰 Earnings Forecaster \n (Calculates Velocity)"]:::cloudApp
+            direction TB
+            PulseEngine["Pulse Engine<br>(Finds Stress)"]:::cloudApp
+            FinanceEngine["Earnings Forecaster<br>(Stats/Pacing)"]:::cloudApp
         end
 
-        FlagDB[("🚩 Flagged Moments DB")]:::storage
-        EarnDB[("🏦 Earnings DB")]:::storage
+        FlagDB[("Flagged Moments DB")]:::storage
+        EarnDB[("Earnings DB")]:::storage
 
         %% Cloud Connections
         Gateway --> MQ
@@ -120,13 +120,13 @@ flowchart TB
     Internet -.-> Gateway
 
     %% Post-Trip UI Layer
-    subgraph UserInterface ["🖥️ Post-Trip Experience"]
-        Dashboard["📊 Driver Pulse Dashboard \n (Zero-Distraction UI)"]:::ui
+    subgraph UserInterface ["Driver Experience"]
+        Dashboard["Driver Pulse Dashboard<br>(Post-Trip Only)"]:::ui
     end
 
     FlagDB --> Dashboard
     EarnDB --> Dashboard
-    Dashboard -.->|Updates visible ONLY \n after trip ends| EdgeDevice
+    Dashboard -.->|Updates visible<br>ONLY after trip ends| EdgeDevice
 ```
 
 ### Understanding the Diagram
