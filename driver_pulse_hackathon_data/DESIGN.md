@@ -44,8 +44,22 @@ Worker nodes pull messages from the queue and run the heuristic logic. This is w
 *   **The Intersection Heuristic:** If we see an isolated spike in audio (a door slamming), we ignore it. If we see a harsh brake followed immediately by a sustained 10-second spike in audio intensity, we combine these signals to flag a **"High Tension Moment."**
 
 ### C. The Earnings Velocity Forecaster
-Simultaneously, the financial service cross-references the trip earnings with the driver's `driver_goals.csv`. 
-It calculates the current Earnings Per Hour (EPH) and projects whether the driver will hit their shift target. This dynamic pacing indicator replaces the static "Total Earned Today" number.
+
+Simultaneously, the financial service cross-references the ongoing trip earnings with the driver's daily goals (`driver_goals.csv`). 
+
+*   **The Problem:** Traditional apps only show "Total Earned Today", which doesn't tell a driver if they need to work 1 more hour or 3 more hours to hit their rent target.
+*   **The Solution:** The engine calculates the driver's absolute required pace (`Remaining Target $ / Remaining Shift Hours`). It then compares this against their actual real-time `earnings_velocity`.
+*   **The Output:** It replaces static numbers with a dynamic pacing indicator (e.g., **"Ahead"**, **"On Track"**, **"At Risk"**, **"Goal Achieved"**), allowing the driver to confidently log off when the system projects they will safely hit their target by shift-end.
+
+#### The Algorithmic Logic
+The mathematical framework powering `earnings_engine.py` is straightforward but highly actionable:
+1.  **Safety Catch:** If `current_earnings` $\geq$ `target_earnings` $\rightarrow$ Instantly flag as **Achieved**.
+2.  **Required Velocity:** `(Target $ - Current $) / Remaining Hours in Shift`
+3.  **Future Projection:** `Current $ + (Current Velocity * Remaining Hours)`
+4.  **Verdict:** 
+    *   If `Future Projection` covers the goal $\geq$ 115%, flag as **Ahead** (they can probably clock out early).
+    *   If `Future Projection` barely covers the goal, flag as **On Track**. 
+    *   If it falls short, flag as **At Risk**.
 
 ---
 
@@ -64,11 +78,12 @@ flowchart TB
     subgraph EdgeDevice ["Edge Computing: Phone"]
         direction TB
         
-        subgraph Sensors ["Hardware"]
+        subgraph Sensors ["Hardware / App Logs"]
             direction LR
             Mic["Microphone"]:::hardware
             Accel["Accelerometer"]:::hardware
             GPS["GPS Module"]:::hardware
+            AppLog["Trip & Earnings<br>Data Logs"]:::hardware
         end
 
         subgraph EdgeProcessing ["Processing"]
@@ -86,6 +101,7 @@ flowchart TB
         GPS --> LocalDB
         AudioProcess --> LocalDB
         MotionFilter --> LocalDB
+        AppLog --> LocalDB
         LocalDB --> SyncManager
     end
 
@@ -100,14 +116,21 @@ flowchart TB
         Gateway["API Gateway"]:::cloudApp
         MQ[("Message Queue<br>(Kafka/SQS)")]:::storage
         
+        subgraph StaticData ["Static References"]
+            GoalDB[("Driver Goals DB")]:::storage
+        end
+        
         subgraph Engines ["Core Analytical Engines"]
             direction TB
-            PulseEngine["Pulse Engine<br>(Finds Stress)"]:::cloudApp
-            FinanceEngine["Earnings Forecaster<br>(Stats/Pacing)"]:::cloudApp
+            PulseEngine["Heuristic Engine<br>(Finds Stress overlap)"]:::cloudApp
+            FinanceEngine["Earnings Forecaster<br>(Tests Velocity)"]:::cloudApp
+            
+            %% Connecting Static Data
+            GoalDB -.->|"Cross-reference<br>with live trip"| FinanceEngine
         end
 
         FlagDB[("Flagged Moments DB")]:::storage
-        EarnDB[("Earnings DB")]:::storage
+        EarnDB[("Earnings Projections DB")]:::storage
 
         %% Cloud Connections
         Gateway --> MQ
