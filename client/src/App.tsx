@@ -1,12 +1,12 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { MotionEvent, MotionClass, AudioEvent } from '../../shared/types'
 import { useAudioStream } from './hooks/useAudioStream'
 import { useFusionStream } from './hooks/useFlags'
 import UnifiedTimeline from './components/UnifiedTimeline'
+import MasterDashboard from './components/MasterDashboard'
+import Login from './components/Login'
 
 const API_BASE = 'http://localhost:3001/api'
-
-type StreamStatus = 'idle' | 'streaming' | 'done' | 'error'
 
 interface MotionStats {
     total: number
@@ -36,40 +36,43 @@ function calcAudioStats(events: AudioEvent[]) {
     }
 }
 
+type ViewState = 'LOGIN' | 'MASTER_DASHBOARD' | 'TRIP_ANALYSIS'
+type StreamStatus = 'idle' | 'streaming' | 'done' | 'error'
+
 export default function App() {
+    const [view, setView] = useState<ViewState>('LOGIN')
+    const [driverId, setDriverId] = useState<string>('')
     const [trips, setTrips] = useState<string[]>([])
     const [selectedTrip, setSelectedTrip] = useState<string | null>(null)
 
-    // Motion stream state (Phase 1 — still used for sidebar stats)
+    // Motion stream state (Phase 1)
     const [motionEvents, setMotionEvents] = useState<MotionEvent[]>([])
     const [motionStatus, setMotionStatus] = useState<StreamStatus>('idle')
-    const motionEsRef = useRef<EventSource | null>(null)
+    const [motionEsRef, setMotionEsRef] = useState<EventSource | null>(null)
 
-    // Audio stream (Phase 2 — still used for sidebar stats)
+    // Audio stream (Phase 2)
     const [audioTripTrigger, setAudioTripTrigger] = useState<string | null>(null)
     const audioStreamActive = useAudioStream(audioTripTrigger)
 
-    // Fusion stream (Phase 3 — PRIMARY)
+    // Fusion stream (Phase 3)
     const [fusionTripTrigger, setFusionTripTrigger] = useState<string | null>(null)
     const fusionStream = useFusionStream(fusionTripTrigger)
 
-    // Fetch trips
     useEffect(() => {
         fetch(`${API_BASE}/trips`)
             .then((r) => r.json())
             .then((data: string[]) => {
                 setTrips(data)
-                if (data.length > 0) setSelectedTrip(data[0])
             })
             .catch(console.error)
     }, [])
 
     const stopMotion = useCallback(() => {
-        if (motionEsRef.current) {
-            motionEsRef.current.close()
-            motionEsRef.current = null
+        if (motionEsRef) {
+            motionEsRef.close()
+            setMotionEsRef(null)
         }
-    }, [])
+    }, [motionEsRef])
 
     const startStreams = useCallback(() => {
         if (!selectedTrip) return
@@ -79,15 +82,14 @@ export default function App() {
         setAudioTripTrigger(null)
         setFusionTripTrigger(null)
 
-        // Start motion SSE (Phase 1)
         const es = new EventSource(`${API_BASE}/motion/${selectedTrip}/stream`)
-        motionEsRef.current = es
+        setMotionEsRef(es)
 
         es.onmessage = (e) => {
             if (e.data === 'DONE') {
                 setMotionStatus('done')
                 es.close()
-                motionEsRef.current = null
+                setMotionEsRef(null)
                 return
             }
             if (e.data === 'ERROR') { setMotionStatus('error'); es.close(); return }
@@ -98,7 +100,6 @@ export default function App() {
         }
         es.onerror = () => { setMotionStatus('error'); es.close() }
 
-        // Trigger audio + fusion streams concurrently
         setTimeout(() => {
             setAudioTripTrigger(selectedTrip)
             setFusionTripTrigger(selectedTrip)
@@ -115,38 +116,68 @@ export default function App() {
         fusionStream.reset()
     }, [stopMotion, audioStreamActive, fusionStream])
 
-    useEffect(() => () => stopMotion(), [stopMotion])
+    const handleLogin = (id: string) => {
+        setDriverId(id)
+        setView('MASTER_DASHBOARD')
+    }
 
-    const isStreaming =
-        motionStatus === 'streaming' ||
-        audioStreamActive.isStreaming ||
-        fusionStream.isStreaming
+    const handleSelectTrip = (tripId: string) => {
+        setSelectedTrip(tripId)
+        resetAll()
+        setView('TRIP_ANALYSIS')
+    }
 
-    const allDone =
-        motionStatus === 'done' &&
-        audioStreamActive.isDone &&
-        fusionStream.isDone
+    const handleBackToDashboard = () => {
+        resetAll()
+        setSelectedTrip(null)
+        setView('MASTER_DASHBOARD')
+    }
 
+    const isStreaming = motionStatus === 'streaming' || audioStreamActive.isStreaming || fusionStream.isStreaming
+    const allDone = motionStatus === 'done' && audioStreamActive.isDone && fusionStream.isDone
+
+    // RENDER LOGIN
+    if (view === 'LOGIN') {
+        return <Login onLogin={handleLogin} />
+    }
+
+    // RENDER MASTER DASHBOARD
+    if (view === 'MASTER_DASHBOARD') {
+        return (
+            <div>
+                <header className="header">
+                    <div className="header-logo">🚗</div>
+                    <div>
+                        <div className="header-title">Driver Pulse Dashboard</div>
+                        <div className="header-subtitle">Welcome, {driverId}</div>
+                    </div>
+                    <button className="btn-secondary" onClick={() => setView('LOGIN')}>Sign Out</button>
+                </header>
+
+                <main className="main-content" style={{ padding: '2rem' }}>
+                    <MasterDashboard
+                        driverId={driverId}
+                        onSelectTrip={handleSelectTrip}
+                        onLayoutUpdate={() => { }}
+                    />
+                </main>
+            </div>
+        )
+    }
+
+    // RENDER TRIP ANALYSIS (Legacy App.tsx View)
     const stats = calcMotionStats(motionEvents)
     const aStats = calcAudioStats(audioStreamActive.events)
     const flagCount = fusionStream.flags.length
 
-    const statusText = isStreaming
-        ? 'Live streaming…'
-        : allDone
-            ? 'Analysis complete'
-            : 'Ready'
-
     return (
         <div>
-            {/* Header */}
             <header className="header">
-                <div className="header-logo">🚗</div>
+                <div className="header-logo" onClick={handleBackToDashboard} style={{ cursor: 'pointer' }}>←</div>
                 <div>
-                    <div className="header-title">Driver Pulse</div>
-                    <div className="header-subtitle">Motion + Audio + Fusion Analysis</div>
+                    <div className="header-title">Trip Analysis: {selectedTrip}</div>
+                    <div className="header-subtitle">Edge/Cloud Fusion Telemetry</div>
                 </div>
-                <span className="header-badge">Phase 3 — Fusion</span>
             </header>
 
             <div className="layout">
@@ -158,10 +189,7 @@ export default function App() {
                             <button
                                 key={trip}
                                 className={`trip-btn ${selectedTrip === trip ? 'active' : ''}`}
-                                onClick={() => {
-                                    setSelectedTrip(trip)
-                                    resetAll()
-                                }}
+                                onClick={() => handleSelectTrip(trip)}
                             >
                                 <span>📍</span>{trip}
                             </button>
@@ -274,7 +302,6 @@ export default function App() {
 
                 {/* Main */}
                 <main className="main-content">
-                    {/* Controls */}
                     <div className="card">
                         <div className="controls">
                             <button
@@ -283,18 +310,17 @@ export default function App() {
                                 onClick={startStreams}
                                 disabled={!selectedTrip || isStreaming}
                             >
-                                {isStreaming ? '⏳ Streaming…' : '▶ Start Analysis'}
+                                {isStreaming ? '⏳ Streaming…' : '▶ Process Simulation'}
                             </button>
                             {(isStreaming || motionStatus !== 'idle') && (
                                 <button className="btn-secondary" onClick={resetAll}>↺ Reset</button>
                             )}
                             <span className={`status-dot ${isStreaming ? 'streaming' : allDone ? 'done' : ''}`}>
-                                {statusText}
+                                {isStreaming ? 'Live streaming…' : allDone ? 'Analysis complete' : 'Ready'}
                             </span>
                         </div>
                     </div>
 
-                    {/* Unified Timeline */}
                     <UnifiedTimeline
                         motionEvents={motionEvents}
                         audioEvents={audioStreamActive.events}
@@ -312,3 +338,4 @@ export default function App() {
         </div>
     )
 }
+

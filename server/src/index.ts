@@ -4,6 +4,7 @@ import tripsRouter from './routes/trips'
 import motionEventsRouter from './routes/motionEvents'
 import audioRoutes from './routes/audioEvents'
 import fusionRoutes, { createFlagsRouter } from './routes/fusion'
+import earningsRouter from './routes/earnings'
 import * as path from 'path'
 import { CsvLoader } from './loaders/csvLoader'
 import { AccelLoader } from './loaders/accelLoader'
@@ -21,6 +22,7 @@ app.use('/api/motion', motionEventsRouter)
 app.use('/api/audio', audioRoutes)
 app.use('/api/fusion', fusionRoutes)
 app.use('/api/flags', createFlagsRouter())
+app.use('/api/driver', earningsRouter)
 
 app.listen(PORT, () => {
     // RUN PREPROCESSOR BEFORE INITIALIZING LOADERS

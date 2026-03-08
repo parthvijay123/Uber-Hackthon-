@@ -146,3 +146,60 @@ export type TimelineEvent =
   | { source: 'motion'; data: MotionEvent }
   | { source: 'audio'; data: AudioEvent }
   | { source: 'flag'; data: FlagEvent }
+
+// ─── Earnings / Phase 4 types ────────────────────────────────────────────────
+
+export type GoalStatus = 'achieved' | 'in_progress' | 'at_risk'
+export type ForecastStatus = 'ahead' | 'on_track' | 'at_risk'
+
+export interface DriverGoal {
+  goal_id: string
+  driver_id: string
+  date: string
+  shift_start_time: string
+  shift_end_time: string
+  target_earnings: number
+  target_hours: number
+  current_earnings: number
+  current_hours: number
+  status: GoalStatus
+  earnings_velocity: number
+  goal_completion_forecast: ForecastStatus
+}
+
+export interface VelocityLog {
+  log_id: string
+  driver_id: string
+  date: string
+  timestamp: string
+  cumulative_earnings: number
+  elapsed_hours: number
+  current_velocity: number
+  target_velocity: number
+  velocity_delta: number
+  trips_completed: number
+  forecast_status: ForecastStatus
+}
+
+export interface PastTripInfo {
+  trip_id: string
+  driver_id: string
+  date: string
+  start_time: string
+  end_time: string
+  duration_min: number
+  distance_km: number
+  fare: number
+  surge_multiplier: number
+  pickup_location: string
+  dropoff_location: string
+  trip_status: string
+}
+
+export interface DriverDashboardData {
+  driverId: string
+  goal: DriverGoal | null
+  velocityLogs: VelocityLog[]
+  recentTrips: PastTripInfo[]
+  totalFlagsToday: number
+}
