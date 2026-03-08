@@ -3,13 +3,16 @@ import { CsvLoader } from './csvLoader'
 import { AccelSample } from '../../../shared/types'
 
 export class AccelLoader {
+    private cache: AccelSample[] | null = null
+
     constructor(
         private csvLoader: CsvLoader,
         private filePath: string
     ) { }
 
     loadAll(): AccelSample[] {
-        return this.csvLoader.parseWithHeaders<AccelSample>(
+        if (this.cache) return this.cache
+        this.cache = this.csvLoader.parseWithHeaders<AccelSample>(
             this.filePath,
             (row) => ({
                 sensor_id: row['accel_id'] ?? '',
@@ -24,6 +27,7 @@ export class AccelLoader {
                 gps_lon: 0,
             })
         )
+        return this.cache
     }
 
     getForTrip(tripId: string): AccelSample[] {

@@ -2,18 +2,24 @@ import express from 'express'
 import cors from 'cors'
 import tripsRouter from './routes/trips'
 import motionEventsRouter from './routes/motionEvents'
+import audioRoutes from './routes/audioEvents'
+import fusionRoutes, { createFlagsRouter } from './routes/fusion'
 import * as path from 'path'
 import { CsvLoader } from './loaders/csvLoader'
 import { AccelLoader } from './loaders/accelLoader'
+import { AudioLoader } from './loaders/audioLoader'
 
 const app = express()
 const PORT = 3001
 
-app.use(cors({ origin: 'http://localhost:5173' }))
+app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:5174'] }))
 app.use(express.json())
 
 app.use('/api/trips', tripsRouter)
 app.use('/api/motion', motionEventsRouter)
+app.use('/api/audio', audioRoutes)
+app.use('/api/fusion', fusionRoutes)
+app.use('/api/flags', createFlagsRouter())
 
 app.listen(PORT, () => {
     const csvLoader = new CsvLoader()
@@ -21,9 +27,16 @@ app.listen(PORT, () => {
         csvLoader,
         path.join(__dirname, 'data/accelerometer_data.csv')
     )
-    const trips = accelLoader.getAvailableTrips()
-    console.log(`🚗 Driver Pulse Server running on http://localhost:${PORT}`)
-    console.log(`📊 Available trips: ${trips.join(', ')}`)
+    const audioLoader = new AudioLoader(
+        csvLoader,
+        path.join(__dirname, 'data/TRIP001_disturbance_windows.csv')
+    )
+    const motionTrips = accelLoader.getAvailableTrips()
+    const audioTrips = audioLoader.getAvailableTrips()
+    console.log(`🚗 Driver Pulse Server ready on :${PORT}`)
+    console.log(`📊 Available trips (motion): ${motionTrips.join(', ')}`)
+    console.log(`🎵 Available trips (audio):  ${audioTrips.join(', ')}`)
+    console.log(`⚡ Fusion endpoint: /api/fusion/:tripId`)
 })
 
 export default app

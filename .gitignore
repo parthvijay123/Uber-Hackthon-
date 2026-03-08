@@ -1,33 +1,12 @@
-# Python cache
-
 **pycache**/
 *.pyc
-
-# Virtual environments
-
 venv/
 env/
-
-# Environment variables
-
 .env
-
-# Logs
-
 *.log
-
-# OS files
-
 .DS_Store
 Thumbs.db
-
-# Editor folders
-
 .vscode/
 .idea/
-
-# Data files
-
-# *.csv
 *.tsv
 node_modules/

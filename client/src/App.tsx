@@ -1,25 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { MotionEvent, MotionClass } from '../../shared/types'
+import { MotionEvent, MotionClass, AudioEvent } from '../../shared/types'
+import { useAudioStream } from './hooks/useAudioStream'
+import { useFusionStream } from './hooks/useFlags'
+import UnifiedTimeline from './components/UnifiedTimeline'
 
 const API_BASE = 'http://localhost:3001/api'
 
-const EVENT_ICONS: Record<MotionClass, string> = {
-    [MotionClass.normal]: '✓',
-    [MotionClass.moderate]: '〜',
-    [MotionClass.harsh]: '⚡',
-    [MotionClass.collision]: '💥',
-}
-
-const EVENT_LABELS: Record<MotionClass, string> = {
-    [MotionClass.normal]: 'Normal',
-    [MotionClass.moderate]: 'Moderate',
-    [MotionClass.harsh]: 'Harsh',
-    [MotionClass.collision]: 'Collision',
-}
-
 type StreamStatus = 'idle' | 'streaming' | 'done' | 'error'
 
-interface Stats {
+interface MotionStats {
     total: number
     normal: number
     moderate: number
@@ -27,7 +16,7 @@ interface Stats {
     collision: number
 }
 
-function calcStats(events: MotionEvent[]): Stats {
+function calcMotionStats(events: MotionEvent[]): MotionStats {
     return {
         total: events.length,
         normal: events.filter((e) => e.event_type === MotionClass.normal).length,
@@ -37,21 +26,34 @@ function calcStats(events: MotionEvent[]): Stats {
     }
 }
 
-function formatElapsed(s: number): string {
-    const min = Math.floor(s / 60)
-    const sec = Math.floor(s % 60)
-    return `${min}:${sec.toString().padStart(2, '0')}`
+function calcAudioStats(events: AudioEvent[]) {
+    return {
+        total: events.length,
+        sustained: events.filter((e) => e.is_sustained).length,
+        critical: events.filter(
+            (e) => e.severity === 'CRITICAL_SPIKE' || e.severity === 'SHORT_CRITICAL'
+        ).length,
+    }
 }
 
 export default function App() {
     const [trips, setTrips] = useState<string[]>([])
     const [selectedTrip, setSelectedTrip] = useState<string | null>(null)
-    const [events, setEvents] = useState<MotionEvent[]>([])
-    const [status, setStatus] = useState<StreamStatus>('idle')
-    const eventSourceRef = useRef<EventSource | null>(null)
-    const listRef = useRef<HTMLDivElement>(null)
 
-    // Fetch available trips
+    // Motion stream state (Phase 1 — still used for sidebar stats)
+    const [motionEvents, setMotionEvents] = useState<MotionEvent[]>([])
+    const [motionStatus, setMotionStatus] = useState<StreamStatus>('idle')
+    const motionEsRef = useRef<EventSource | null>(null)
+
+    // Audio stream (Phase 2 — still used for sidebar stats)
+    const [audioTripTrigger, setAudioTripTrigger] = useState<string | null>(null)
+    const audioStreamActive = useAudioStream(audioTripTrigger)
+
+    // Fusion stream (Phase 3 — PRIMARY)
+    const [fusionTripTrigger, setFusionTripTrigger] = useState<string | null>(null)
+    const fusionStream = useFusionStream(fusionTripTrigger)
+
+    // Fetch trips
     useEffect(() => {
         fetch(`${API_BASE}/trips`)
             .then((r) => r.json())
@@ -59,70 +61,81 @@ export default function App() {
                 setTrips(data)
                 if (data.length > 0) setSelectedTrip(data[0])
             })
-            .catch(() => console.error('Failed to fetch trips'))
+            .catch(console.error)
     }, [])
 
-    // Auto-scroll events list
-    useEffect(() => {
-        if (listRef.current) {
-            listRef.current.scrollTop = 0
-        }
-    }, [events.length])
-
-    const stopStream = useCallback(() => {
-        if (eventSourceRef.current) {
-            eventSourceRef.current.close()
-            eventSourceRef.current = null
+    const stopMotion = useCallback(() => {
+        if (motionEsRef.current) {
+            motionEsRef.current.close()
+            motionEsRef.current = null
         }
     }, [])
 
-    const startStream = useCallback(() => {
+    const startStreams = useCallback(() => {
         if (!selectedTrip) return
-        stopStream()
-        setEvents([])
-        setStatus('streaming')
+        stopMotion()
+        setMotionEvents([])
+        setMotionStatus('streaming')
+        setAudioTripTrigger(null)
+        setFusionTripTrigger(null)
 
+        // Start motion SSE (Phase 1)
         const es = new EventSource(`${API_BASE}/motion/${selectedTrip}/stream`)
-        eventSourceRef.current = es
+        motionEsRef.current = es
 
         es.onmessage = (e) => {
             if (e.data === 'DONE') {
-                setStatus('done')
+                setMotionStatus('done')
                 es.close()
-                eventSourceRef.current = null
+                motionEsRef.current = null
                 return
             }
-            if (e.data === 'ERROR') {
-                setStatus('error')
-                es.close()
-                return
-            }
+            if (e.data === 'ERROR') { setMotionStatus('error'); es.close(); return }
             try {
                 const event: MotionEvent = JSON.parse(e.data)
-                setEvents((prev) => [event, ...prev])
-            } catch {
-                // ignore parse errors
-            }
+                setMotionEvents((prev) => [event, ...prev])
+            } catch { /* ignore */ }
         }
+        es.onerror = () => { setMotionStatus('error'); es.close() }
 
-        es.onerror = () => {
-            setStatus('error')
-            es.close()
-        }
-    }, [selectedTrip, stopStream])
+        // Trigger audio + fusion streams concurrently
+        setTimeout(() => {
+            setAudioTripTrigger(selectedTrip)
+            setFusionTripTrigger(selectedTrip)
+        }, 150)
+    }, [selectedTrip, stopMotion])
 
-    useEffect(() => {
-        return () => stopStream()
-    }, [stopStream])
+    const resetAll = useCallback(() => {
+        stopMotion()
+        setMotionEvents([])
+        setMotionStatus('idle')
+        setAudioTripTrigger(null)
+        setFusionTripTrigger(null)
+        audioStreamActive.reset()
+        fusionStream.reset()
+    }, [stopMotion, audioStreamActive, fusionStream])
 
-    const stats = calcStats(events)
+    useEffect(() => () => stopMotion(), [stopMotion])
 
-    const statusLabel: Record<StreamStatus, string> = {
-        idle: 'Ready',
-        streaming: 'Live streaming…',
-        done: 'Stream complete',
-        error: 'Connection error',
-    }
+    const isStreaming =
+        motionStatus === 'streaming' ||
+        audioStreamActive.isStreaming ||
+        fusionStream.isStreaming
+
+    const allDone =
+        motionStatus === 'done' &&
+        audioStreamActive.isDone &&
+        fusionStream.isDone
+
+    const stats = calcMotionStats(motionEvents)
+    const aStats = calcAudioStats(audioStreamActive.events)
+    const flagCount = fusionStream.flags.length
+
+    const statusText = isStreaming
+        ? 'Live streaming…'
+        : allDone
+            ? 'Analysis complete'
+            : 'Ready'
 
     return (
         <div>
@@ -131,177 +144,169 @@ export default function App() {
                 <div className="header-logo">🚗</div>
                 <div>
                     <div className="header-title">Driver Pulse</div>
-                    <div className="header-subtitle">Motion Safety Analysis</div>
+                    <div className="header-subtitle">Motion + Audio + Fusion Analysis</div>
                 </div>
-                <span className="header-badge">Phase 1 — Motion</span>
+                <span className="header-badge">Phase 3 — Fusion</span>
             </header>
 
             <div className="layout">
                 {/* Sidebar */}
                 <aside className="sidebar">
-                    {/* Trip selector */}
                     <div className="card">
                         <div className="card-title">Select Trip</div>
-                        {trips.length === 0 ? (
-                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Loading trips…</p>
-                        ) : (
-                            trips.map((trip) => (
-                                <button
-                                    key={trip}
-                                    className={`trip-btn ${selectedTrip === trip ? 'active' : ''}`}
-                                    onClick={() => {
-                                        setSelectedTrip(trip)
-                                        setEvents([])
-                                        setStatus('idle')
-                                        stopStream()
-                                    }}
-                                >
-                                    <span>📍</span>
-                                    {trip}
-                                </button>
-                            ))
-                        )}
+                        {trips.map((trip) => (
+                            <button
+                                key={trip}
+                                className={`trip-btn ${selectedTrip === trip ? 'active' : ''}`}
+                                onClick={() => {
+                                    setSelectedTrip(trip)
+                                    resetAll()
+                                }}
+                            >
+                                <span>📍</span>{trip}
+                            </button>
+                        ))}
                     </div>
 
-                    {/* Stats */}
+                    {/* Fusion flags summary */}
                     <div className="card">
-                        <div className="card-title">Session Stats</div>
+                        <div className="card-title">⚡ Flags</div>
+                        <div className="stats-grid">
+                            <div className="stat-item" style={{ gridColumn: '1 / -1' }}>
+                                <div className="stat-value" style={{ color: flagCount > 0 ? 'var(--accent-yellow)' : 'inherit' }}>
+                                    {flagCount}
+                                </div>
+                                <div className="stat-label">Total Flags</div>
+                            </div>
+                            {fusionStream.flags.filter(f => f.flag_type === 'conflict_moment').length > 0 && (
+                                <div className="stat-item" style={{ gridColumn: '1 / -1' }}>
+                                    <div className="stat-value" style={{ color: 'var(--accent-red)' }}>
+                                        {fusionStream.flags.filter(f => f.flag_type === 'conflict_moment').length}
+                                    </div>
+                                    <div className="stat-label">⚡ Conflicts</div>
+                                </div>
+                            )}
+                            <div className="stat-item">
+                                <div className="stat-value" style={{ color: 'var(--accent-orange)' }}>
+                                    {fusionStream.flags.filter(f => f.flag_type === 'motion_only').length}
+                                </div>
+                                <div className="stat-label">🚗 Motion</div>
+                            </div>
+                            <div className="stat-item">
+                                <div className="stat-value" style={{ color: 'var(--accent-blue)' }}>
+                                    {fusionStream.flags.filter(f => f.flag_type === 'audio_only').length}
+                                </div>
+                                <div className="stat-label">🔊 Audio</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Motion stats */}
+                    <div className="card">
+                        <div className="card-title">Motion</div>
                         <div className="stats-grid">
                             <div className="stat-item">
                                 <div className="stat-value">{stats.total}</div>
                                 <div className="stat-label">Windows</div>
                             </div>
                             <div className="stat-item">
-                                <div className="stat-value" style={{ color: 'var(--accent-green)' }}>
-                                    {stats.normal}
-                                </div>
+                                <div className="stat-value" style={{ color: 'var(--accent-green)' }}>{stats.normal}</div>
                                 <div className="stat-label">Normal</div>
                             </div>
                             <div className="stat-item">
-                                <div className="stat-value" style={{ color: 'var(--accent-yellow)' }}>
-                                    {stats.moderate}
-                                </div>
+                                <div className="stat-value" style={{ color: 'var(--accent-yellow)' }}>{stats.moderate}</div>
                                 <div className="stat-label">Moderate</div>
                             </div>
                             <div className="stat-item">
-                                <div className="stat-value" style={{ color: 'var(--accent-orange)' }}>
-                                    {stats.harsh}
-                                </div>
+                                <div className="stat-value" style={{ color: 'var(--accent-orange)' }}>{stats.harsh}</div>
                                 <div className="stat-label">Harsh</div>
                             </div>
                             {stats.collision > 0 && (
                                 <div className="stat-item" style={{ gridColumn: '1 / -1' }}>
-                                    <div className="stat-value" style={{ color: 'var(--accent-red)' }}>
-                                        {stats.collision}
-                                    </div>
+                                    <div className="stat-value" style={{ color: 'var(--accent-red)' }}>{stats.collision}</div>
                                     <div className="stat-label">⚠ Collision</div>
                                 </div>
                             )}
                         </div>
                     </div>
 
+                    {/* Audio stats */}
+                    <div className="card">
+                        <div className="card-title">Audio</div>
+                        <div className="stats-grid">
+                            <div className="stat-item">
+                                <div className="stat-value">{aStats.total}</div>
+                                <div className="stat-label">Spikes</div>
+                            </div>
+                            <div className="stat-item">
+                                <div className="stat-value" style={{ color: 'var(--accent-cyan)' }}>{aStats.sustained}</div>
+                                <div className="stat-label">Sustained</div>
+                            </div>
+                            <div className="stat-item" style={{ gridColumn: '1 / -1' }}>
+                                <div className="stat-value" style={{ color: 'var(--accent-red)' }}>{aStats.critical}</div>
+                                <div className="stat-label">Critical</div>
+                            </div>
+                        </div>
+                    </div>
+
                     {/* Legend */}
                     <div className="card">
-                        <div className="card-title">Event Types</div>
+                        <div className="card-title">Legend</div>
                         <div className="legend" style={{ flexDirection: 'column' }}>
                             <div className="legend-item">
-                                <div className="legend-dot" style={{ background: 'var(--accent-green)' }} />
-                                Normal — Routine driving
+                                <div className="legend-dot" style={{ background: '#dc2626' }} /> ⚡ Conflict
                             </div>
                             <div className="legend-item">
-                                <div className="legend-dot" style={{ background: 'var(--accent-yellow)' }} />
-                                Moderate — Bumpy / mild event
+                                <div className="legend-dot" style={{ background: '#ea580c' }} /> 🚗 Motion only
                             </div>
                             <div className="legend-item">
-                                <div className="legend-dot" style={{ background: 'var(--accent-orange)' }} />
-                                Harsh — Hard brake / accel
+                                <div className="legend-dot" style={{ background: '#2563eb' }} /> 🔊 Audio only
                             </div>
                             <div className="legend-item">
-                                <div className="legend-dot" style={{ background: 'var(--accent-red)' }} />
-                                Collision — Severe impact
+                                <div className="legend-dot" style={{ background: '#f97316' }} /> Motion event
+                            </div>
+                            <div className="legend-item">
+                                <div className="legend-dot" style={{ background: 'var(--accent-blue)' }} /> Audio spike
                             </div>
                         </div>
                     </div>
                 </aside>
 
-                {/* Main content */}
+                {/* Main */}
                 <main className="main-content">
                     {/* Controls */}
                     <div className="card">
                         <div className="controls">
                             <button
-                                className="btn-primary"
-                                onClick={startStream}
-                                disabled={!selectedTrip || status === 'streaming'}
                                 id="btn-start-stream"
+                                className="btn-primary"
+                                onClick={startStreams}
+                                disabled={!selectedTrip || isStreaming}
                             >
-                                {status === 'streaming' ? '⏳ Streaming…' : '▶ Start Stream'}
+                                {isStreaming ? '⏳ Streaming…' : '▶ Start Analysis'}
                             </button>
-
-                            {status === 'streaming' && (
-                                <button
-                                    className="btn-secondary"
-                                    onClick={() => {
-                                        stopStream()
-                                        setStatus('idle')
-                                    }}
-                                >
-                                    ■ Stop
-                                </button>
+                            {(isStreaming || motionStatus !== 'idle') && (
+                                <button className="btn-secondary" onClick={resetAll}>↺ Reset</button>
                             )}
-
-                            <span className={`status-dot ${status === 'streaming' ? 'streaming' : status === 'done' ? 'done' : ''}`}>
-                                {statusLabel[status]}
+                            <span className={`status-dot ${isStreaming ? 'streaming' : allDone ? 'done' : ''}`}>
+                                {statusText}
                             </span>
                         </div>
                     </div>
 
-                    {/* Events Feed */}
-                    <div className="card">
-                        <div className="events-header">
-                            <div className="card-title" style={{ margin: 0 }}>
-                                Motion Events
-                            </div>
-                            <span className="events-count">{events.length} events</span>
-                        </div>
-
-                        {events.length === 0 ? (
-                            <div className="empty-state">
-                                <div className="empty-state-icon">📡</div>
-                                <div className="empty-state-text">
-                                    {status === 'idle'
-                                        ? `Select a trip and press Start Stream to begin.`
-                                        : 'Waiting for events…'}
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="events-list" ref={listRef}>
-                                {events.map((event) => (
-                                    <div key={event.event_id} className="event-card">
-                                        <div className={`event-icon ${event.event_type}`}>
-                                            {EVENT_ICONS[event.event_type]}
-                                        </div>
-                                        <div className="event-info">
-                                            <span className={`event-type-badge ${event.event_type}`}>
-                                                {EVENT_LABELS[event.event_type]}
-                                            </span>
-                                            <div className="event-explanation">{event.explanation}</div>
-                                        </div>
-                                        <div className="event-meta">
-                                            <div className="event-score">{(event.score * 100).toFixed(0)}%</div>
-                                            <div className="event-time">t={formatElapsed(event.elapsed_s)}</div>
-                                            <div className="score-bar-container">
-                                                <div
-                                                    className={`score-bar ${event.event_type}`}
-                                                    style={{ width: `${event.score * 100}%` }}
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                    {/* Unified Timeline */}
+                    <UnifiedTimeline
+                        motionEvents={motionEvents}
+                        audioEvents={audioStreamActive.events}
+                        flags={fusionStream.flags}
+                        isMotionStreaming={motionStatus === 'streaming'}
+                        isAudioStreaming={audioStreamActive.isStreaming}
+                        isMotionDone={motionStatus === 'done'}
+                        isAudioDone={audioStreamActive.isDone}
+                        isFusionStreaming={fusionStream.isStreaming}
+                        isFusionDone={fusionStream.isDone}
+                        summary={fusionStream.summary}
+                    />
                 </main>
             </div>
         </div>
