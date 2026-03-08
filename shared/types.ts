@@ -150,7 +150,7 @@ export type TimelineEvent =
 // ─── Earnings / Phase 4 types ────────────────────────────────────────────────
 
 export type GoalStatus = 'achieved' | 'in_progress' | 'at_risk'
-export type ForecastStatus = 'ahead' | 'on_track' | 'at_risk'
+export type ForecastStatus = 'ahead' | 'on_track' | 'at_risk' | 'warming_up' | 'achieved'
 
 export interface DriverGoal {
   goal_id: string
@@ -194,6 +194,8 @@ export interface PastTripInfo {
   pickup_location: string
   dropoff_location: string
   trip_status: string
+  stress_score?: number
+  trip_rating?: 'Excellent' | 'Good' | 'Fair' | 'Poor'
 }
 
 export interface DriverDashboardData {
