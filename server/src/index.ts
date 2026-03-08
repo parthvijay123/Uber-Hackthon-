@@ -8,6 +8,7 @@ import * as path from 'path'
 import { CsvLoader } from './loaders/csvLoader'
 import { AccelLoader } from './loaders/accelLoader'
 import { AudioLoader } from './loaders/audioLoader'
+import { DataPreprocessor } from './loaders/dataPreprocessor'
 
 const app = express()
 const PORT = 3001
@@ -22,14 +23,17 @@ app.use('/api/fusion', fusionRoutes)
 app.use('/api/flags', createFlagsRouter())
 
 app.listen(PORT, () => {
+    // RUN PREPROCESSOR BEFORE INITIALIZING LOADERS
+    DataPreprocessor.run()
+
     const csvLoader = new CsvLoader()
     const accelLoader = new AccelLoader(
         csvLoader,
-        path.join(__dirname, 'data/accelerometer_data.csv')
+        path.join(__dirname, 'data/clean_accelerometer.csv')
     )
     const audioLoader = new AudioLoader(
         csvLoader,
-        path.join(__dirname, 'data/TRIP001_disturbance_windows.csv')
+        path.join(__dirname, 'data/clean_audio.csv')
     )
     const motionTrips = accelLoader.getAvailableTrips()
     const audioTrips = audioLoader.getAvailableTrips()

@@ -7,7 +7,7 @@ import { EventStore } from '../db/eventStore'
 import { AudioBatchWindow, AudioEvent, AudioSample } from '../../../shared/types'
 
 const router = Router()
-const AUDIO_CSV_PATH = path.join(__dirname, '../data/TRIP001_disturbance_windows.csv')
+const AUDIO_CSV_PATH = path.join(__dirname, '../data/clean_audio.csv')
 const eventStore = new EventStore()
 
 // ── Local helper: build 30-second AudioBatchWindows ──────────────────────────

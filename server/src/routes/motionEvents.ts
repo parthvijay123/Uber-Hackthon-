@@ -9,7 +9,7 @@ import { EventStore } from '../db/eventStore'
 import { MotionEvent } from '../../../shared/types'
 
 const router = Router()
-const CSV_PATH = path.join(__dirname, '../data/accelerometer_data.csv')
+const CSV_PATH = path.join(__dirname, '../data/clean_accelerometer.csv')
 const eventStore = new EventStore()
 
 function processTrip(tripId: string): MotionEvent[] {
