@@ -32,11 +32,11 @@ export class EarningsLoader {
             for (let i = 0; i < logs.length; i++) {
                 const log = logs[i]
 
-                // 1. Target Velocity
+
                 const targetHours = goal.target_hours > 0 ? goal.target_hours : 1
                 const targetVelocity = goal.target_earnings / targetHours
 
-                // 2. Current Velocity
+
                 const currentVelocity = log.elapsed_hours > 0 ? log.cumulative_earnings / log.elapsed_hours : 0
                 const velocityDelta = currentVelocity - targetVelocity
 
@@ -44,19 +44,19 @@ export class EarningsLoader {
                 log.current_velocity = currentVelocity
                 log.velocity_delta = velocityDelta
 
-                // 8. Edge Cases (Zero Goal or Achieved)
+
                 if (goal.target_earnings === 0 || log.cumulative_earnings >= goal.target_earnings) {
                     log.forecast_status = 'achieved'
                     continue
                 }
 
-                // 7. Shift End Evaluation
+
                 if (log.elapsed_hours >= targetHours) {
                     log.forecast_status = 'at_risk'
                     continue
                 }
 
-                // 3. Raw Classification
+
                 let rawStatus: ForecastStatus = 'on_track'
                 if (currentVelocity > targetVelocity * 1.15) {
                     rawStatus = 'ahead'
@@ -64,7 +64,7 @@ export class EarningsLoader {
                     rawStatus = 'at_risk'
                 }
 
-                // 5. Recovery Feasibility
+
                 if (rawStatus === 'at_risk') {
                     const remainingEarnings = Math.max(0, goal.target_earnings - log.cumulative_earnings)
                     const remainingHours = Math.max(0, targetHours - log.elapsed_hours)
@@ -75,7 +75,7 @@ export class EarningsLoader {
                         recoveryRatio = recoveryVelocity / targetVelocity
                     }
 
-                    // If Ratio is <= 1.8, goal is still manageable — do not flag as At Risk yet
+
                     if (recoveryRatio <= 1.8) {
                         rawStatus = 'on_track'
                     }
@@ -97,7 +97,7 @@ export class EarningsLoader {
                     finalStatus = 'on_track'
                 }
 
-                // 4. Early Shift Confidence Ramp
+
                 if (finalStatus === 'at_risk') {
                     let tripConf = 1
                     if (log.trips_completed < 3) tripConf = 0
@@ -116,7 +116,7 @@ export class EarningsLoader {
                 log.forecast_status = finalStatus
             }
 
-            // Sync the overarching Goal with the absolute newest data state
+
             if (logs.length > 0) {
                 const latest = logs[logs.length - 1]
                 goal.earnings_velocity = latest.current_velocity

@@ -5,6 +5,8 @@ import motionEventsRouter from './routes/motionEvents'
 import audioRoutes from './routes/audioEvents'
 import fusionRoutes, { createFlagsRouter } from './routes/fusion'
 import earningsRouter from './routes/earnings'
+import demoRouter from './routes/demoRouter'
+import { wipeDemoData } from './db/devReset'
 import * as path from 'path'
 import { CsvLoader } from './loaders/csvLoader'
 import { AccelLoader } from './loaders/accelLoader'
@@ -23,8 +25,12 @@ app.use('/api/audio', audioRoutes)
 app.use('/api/fusion', fusionRoutes)
 app.use('/api/flags', createFlagsRouter())
 app.use('/api/driver', earningsRouter)
+app.use('/api/demo', demoRouter)
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
+    // Wipe demo data on every dev restart for a clean test slate
+    await wipeDemoData()
+
     // RUN PREPROCESSOR BEFORE INITIALIZING LOADERS
     DataPreprocessor.run()
 

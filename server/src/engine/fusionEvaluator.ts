@@ -8,12 +8,12 @@ import {
     MotionClass,
 } from '../../../shared/types'
 
-// ─── FusionEvaluator ─────────────────────────────────────────────────────────
+
 
 export class FusionEvaluator {
-    // Events within this window of each other are considered correlated
+
     private readonly OVERLAP_TOLERANCE_S = 30
-    // Minimum scores to be "significant" before fusion
+
     private readonly MIN_AUDIO_SCORE = 0.45
     private readonly MIN_MOTION_SCORE = 0.45
 
@@ -22,7 +22,7 @@ export class FusionEvaluator {
         audioEvents: AudioEvent[],
         tripId: string
     ): FlagEvent[] {
-        // 1. Filter to significant events only
+
         const significantMotion = motionEvents.filter(
             (e) => e.score > this.MIN_MOTION_SCORE && e.event_type !== MotionClass.normal
         )
@@ -34,9 +34,9 @@ export class FusionEvaluator {
         const matchedAudioIds = new Set<string>()
         const results: FlagEvent[] = []
 
-        // 2. Match phase — find overlapping pairs
+
         for (const motionEvent of significantMotion) {
-            // Find all audio events within OVERLAP_TOLERANCE_S seconds
+
             const candidates = significantAudio.filter(
                 (a) =>
                     !matchedAudioIds.has(a.event_id) &&
@@ -44,7 +44,7 @@ export class FusionEvaluator {
             )
 
             if (candidates.length > 0) {
-                // Take closest match by elapsed_s
+
                 const closest = candidates.reduce((best, cur) =>
                     Math.abs(cur.elapsed_s - motionEvent.elapsed_s) <
                         Math.abs(best.elapsed_s - motionEvent.elapsed_s)
@@ -60,7 +60,7 @@ export class FusionEvaluator {
             }
         }
 
-        // 3. Unmatched motion → motion_only
+
         for (const motionEvent of significantMotion) {
             if (!matchedMotionIds.has(motionEvent.event_id)) {
                 results.push(
@@ -69,7 +69,7 @@ export class FusionEvaluator {
             }
         }
 
-        // 4. Unmatched audio → audio_only
+
         for (const audioEvent of significantAudio) {
             if (!matchedAudioIds.has(audioEvent.event_id)) {
                 results.push(
@@ -78,16 +78,14 @@ export class FusionEvaluator {
             }
         }
 
-        // 5. Sort by elapsed_s ascending
+
         results.sort((a, b) => a.elapsed_s - b.elapsed_s)
 
         return results
     }
 
-    // ── Audio score helper (converts severity to 0–1) ────────────────────────
-
     private audioScore(event: AudioEvent): number {
-        // Map the audio severity to a rough 0–1 score for filtering
+
         const severityScores: Record<string, number> = {
             SHORT_LOW: 0.15,
             SHORT_MODERATE: 0.40,
@@ -99,8 +97,6 @@ export class FusionEvaluator {
         }
         return severityScores[event.severity] ?? 0.3
     }
-
-    // ── Build a FlagEvent ─────────────────────────────────────────────────────
 
     private buildFlagEvent(
         tripId: string,
@@ -131,7 +127,7 @@ export class FusionEvaluator {
                     ? FlagSeverity.medium
                     : FlagSeverity.low
 
-        // Explanation
+
         let explanation: string
         switch (flagType) {
             case FlagType.conflict_moment:
@@ -145,7 +141,7 @@ export class FusionEvaluator {
                 break
         }
 
-        // Context
+
         let context: string
         switch (flagType) {
             case FlagType.conflict_moment:
@@ -159,7 +155,7 @@ export class FusionEvaluator {
                 break
         }
 
-        // Use the earlier timestamp / elapsed_s of the two events
+
         const timestamp =
             motionEvent && audioEvent
                 ? motionEvent.elapsed_s <= audioEvent.elapsed_s

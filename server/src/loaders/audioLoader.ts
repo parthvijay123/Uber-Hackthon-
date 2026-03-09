@@ -6,24 +6,30 @@ export class AudioLoader {
 
     constructor(
         private csvLoader: CsvLoader,
-        private filePath: string
+        private filePaths: string | string[]
     ) { }
 
     loadAll(): AudioSample[] {
         if (this.cache) return this.cache
-        this.cache = this.csvLoader
-            .parseWithHeaders<AudioSample | null>(this.filePath, (row) => {
-                const db = parseFloat(row['audio_level_db'] ?? '')
-                if (isNaN(db)) return null
-                return {
-                    audio_id: row['audio_id'] ?? '',
-                    trip_id: row['trip_id'] ?? '',
-                    timestamp: row['timestamp'] ?? '',
-                    elapsed_s: parseFloat(row['elapsed_seconds'] ?? '0'),
-                    db_level: db,
-                }
-            })
+
+        const paths = Array.isArray(this.filePaths) ? this.filePaths : [this.filePaths]
+
+        const mapper = (row: any): AudioSample | null => {
+            const db = parseFloat(row['audio_level_db'] ?? '')
+            if (isNaN(db)) return null
+            return {
+                audio_id: row['audio_id'] ?? '',
+                trip_id: row['trip_id'] ?? '',
+                timestamp: row['timestamp'] ?? '',
+                elapsed_s: parseFloat(row['elapsed_seconds'] ?? '0'),
+                db_level: db,
+            }
+        }
+
+        this.cache = paths
+            .flatMap(p => this.csvLoader.parseWithHeaders<AudioSample | null>(p, mapper))
             .filter((s): s is AudioSample => s !== null)
+
         return this.cache
     }
 

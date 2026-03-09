@@ -9,4 +9,11 @@ Thumbs.db
 .vscode/
 .idea/
 *.tsv
-node_modules/.DS_Store
+
+# Dependencies — never commit these
+node_modules/
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo

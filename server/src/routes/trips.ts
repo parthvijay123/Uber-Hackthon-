@@ -5,13 +5,18 @@ import { AccelLoader } from '../loaders/accelLoader'
 
 const router = Router()
 
-const CSV_PATH = path.join(__dirname, '../data/accelerometer_data.csv')
+const DATA_DIR = path.join(__dirname, '../data')
 
 router.get('/', (_req, res) => {
     const csvLoader = new CsvLoader()
-    const accelLoader = new AccelLoader(csvLoader, CSV_PATH)
+    const accelLoader = new AccelLoader(csvLoader, [
+        path.join(DATA_DIR, 'TRIP001_accelerometer_data.csv'),
+        path.join(DATA_DIR, 'TRIP002_accelerometer_data.csv'),
+        path.join(DATA_DIR, 'TRIP003_accelerometer_data.csv'),
+    ])
     const trips = accelLoader.getAvailableTrips()
     res.json(trips)
 })
+
 
 export default router

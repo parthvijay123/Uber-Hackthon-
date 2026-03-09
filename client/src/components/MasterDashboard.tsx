@@ -5,11 +5,12 @@ interface MasterDashboardProps {
     driverId: string
     onSelectTrip: (tripId: string) => void
     onLayoutUpdate: () => void
+    refreshKey?: number
 }
 
 const API_BASE = 'http://localhost:3001/api'
 
-export default function MasterDashboard({ driverId, onSelectTrip, onLayoutUpdate }: MasterDashboardProps) {
+export default function MasterDashboard({ driverId, onSelectTrip, onLayoutUpdate, refreshKey = 0 }: MasterDashboardProps) {
     const [data, setData] = useState<DriverDashboardData | null>(null)
     const [loading, setLoading] = useState(true)
 
@@ -29,7 +30,7 @@ export default function MasterDashboard({ driverId, onSelectTrip, onLayoutUpdate
                 console.error(err)
                 setLoading(false)
             })
-    }, [driverId, onLayoutUpdate])
+    }, [driverId, refreshKey])
 
     if (loading) {
         return <div className="loading-state">Loading dashboard data...</div>
@@ -47,7 +48,9 @@ export default function MasterDashboard({ driverId, onSelectTrip, onLayoutUpdate
         latestLog = velocityLogs[velocityLogs.length - 1]
     }
 
-    const goalPercent = Math.min(100, Math.round((goal.current_earnings / goal.target_earnings) * 100))
+    const goalPercent = latestLog
+        ? Math.min(100, Math.round((latestLog.cumulative_earnings / goal.target_earnings) * 100))
+        : Math.min(100, Math.round((goal.current_earnings / goal.target_earnings) * 100))
     const forecastStatus = latestLog?.forecast_status || goal.goal_completion_forecast || 'on_track'
 
     let statusClass = 'on-track'
@@ -139,7 +142,7 @@ export default function MasterDashboard({ driverId, onSelectTrip, onLayoutUpdate
 
                     <div className="gauge-stats">
                         <div className="gauge-stat">
-                            <span>₹{goal.current_earnings}</span>
+                            <span>₹{latestLog ? latestLog.cumulative_earnings.toFixed(0) : goal.current_earnings.toFixed(0)}</span>
                             <small>Earned</small>
                         </div>
                         <div className="gauge-divider"></div>

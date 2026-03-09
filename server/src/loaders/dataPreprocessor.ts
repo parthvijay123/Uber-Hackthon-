@@ -7,14 +7,23 @@ export class DataPreprocessor {
         console.log("--- Starting TypeScript Data Preprocessor ---")
         const csvLoader = new CsvLoader()
 
-        const tripsFile = path.resolve(__dirname, '../data/trips.csv')
-        const accelFile = path.resolve(__dirname, '../data/accelerometer_data.csv')
-        const audioFile = path.resolve(__dirname, '../data/TRIP001_disturbance_windows.csv')
+        const dataDir = path.resolve(__dirname, '../data')
+        const accelFiles = [
+            path.join(dataDir, 'TRIP001_accelerometer_data.csv'),
+            path.join(dataDir, 'TRIP002_accelerometer_data.csv'),
+            path.join(dataDir, 'TRIP003_accelerometer_data.csv'),
+        ]
+        const audioFiles = [
+            path.join(dataDir, 'TRIP001_audio_data.csv'),
+            path.join(dataDir, 'TRIP002_audio_data.csv'),
+            path.join(dataDir, 'TRIP003_audio_data.csv'),
+        ]
 
-        const cleanAccelFile = path.resolve(__dirname, '../data/clean_accelerometer.csv')
-        const cleanAudioFile = path.resolve(__dirname, '../data/clean_audio.csv')
+        const cleanAccelFile = path.resolve(dataDir, 'clean_accelerometer.csv')
+        const cleanAudioFile = path.resolve(dataDir, 'clean_audio.csv')
 
         // 1. Process Trips to get absolute time boundaries
+        const tripsFile = path.join(dataDir, 'trips.csv')
         const tripsRaw = csvLoader.parseWithHeaders<any>(tripsFile, row => row)
         const tripsMap = new Map<string, { startMs: number, endMs: number }>()
 
@@ -27,9 +36,9 @@ export class DataPreprocessor {
             tripsMap.set(t.trip_id, { startMs, endMs })
         }
 
-        // 2. Process Accelerometer
+        // 2. Process Accelerometer — merge all trip files
         console.log("Processing Accelerometer Data...")
-        const accelRaw = csvLoader.parseWithHeaders<any>(accelFile, row => row)
+        const accelRaw = accelFiles.flatMap(f => csvLoader.parseWithHeaders<any>(f, row => row))
         const initialAccelCount = accelRaw.length
 
         // Helper to parse `06-02-2024 06:00:00` or `2024-02-06 06:00:00`
@@ -131,9 +140,9 @@ export class DataPreprocessor {
         console.log(`Initial accel: ${initialAccelCount}, Post-time: ${postTimeAccelCount}, Final: ${smoothedAccelData.length}`)
         console.log(`Saved to ${cleanAccelFile}`)
 
-        // 3. Process Audio
+        // 3. Process Audio — merge all trip files
         console.log("Processing Audio Data...")
-        const audioRaw = csvLoader.parseWithHeaders<any>(audioFile, row => row)
+        const audioRaw = audioFiles.flatMap(f => csvLoader.parseWithHeaders<any>(f, row => row))
         const initialAudioCount = audioRaw.length
 
         let audioClean = audioRaw.filter(row => {

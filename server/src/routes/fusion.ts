@@ -14,13 +14,22 @@ const router = Router()
 
 // ── Module-level singletons (CSV loaded once at startup, not per-request) ────
 const csvLoader = new CsvLoader()
+const DATA_DIR = path.join(__dirname, '../data')
 const accelLoader = new AccelLoader(
     csvLoader,
-    path.join(__dirname, '../data/accelerometer_data.csv')
+    [
+        path.join(DATA_DIR, 'TRIP001_accelerometer_data.csv'),
+        path.join(DATA_DIR, 'TRIP002_accelerometer_data.csv'),
+        path.join(DATA_DIR, 'TRIP003_accelerometer_data.csv'),
+    ]
 )
 const audioLoader = new AudioLoader(
     csvLoader,
-    path.join(__dirname, '../data/TRIP001_disturbance_windows.csv')
+    [
+        path.join(DATA_DIR, 'TRIP001_audio_data.csv'),
+        path.join(DATA_DIR, 'TRIP002_audio_data.csv'),
+        path.join(DATA_DIR, 'TRIP003_audio_data.csv'),
+    ]
 )
 const motionProcessor = new MotionProcessor()
 const audioProcessor = new AudioProcessor()

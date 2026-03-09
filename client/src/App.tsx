@@ -1,10 +1,11 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { MotionEvent, MotionClass, AudioEvent } from '../../shared/types'
 import { useAudioStream } from './hooks/useAudioStream'
 import { useFusionStream } from './hooks/useFlags'
 import UnifiedTimeline from './components/UnifiedTimeline'
 import MasterDashboard from './components/MasterDashboard'
 import Login from './components/Login'
+import DemoTripPicker from './components/DemoTripPicker'
 
 const API_BASE = 'http://localhost:3001/api'
 
@@ -44,6 +45,10 @@ export default function App() {
     const [driverId, setDriverId] = useState<string>('')
     const [trips, setTrips] = useState<string[]>([])
     const [selectedTrip, setSelectedTrip] = useState<string | null>(null)
+    const [showPicker, setShowPicker] = useState(false)
+    const [completedTrips, setCompletedTrips] = useState<string[]>([])
+    const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0)
+    const completedRef = useRef<boolean>(false)
 
     // Motion stream state (Phase 1)
     const [motionEvents, setMotionEvents] = useState<MotionEvent[]>([])
@@ -81,7 +86,9 @@ export default function App() {
         setMotionStatus('streaming')
         setAudioTripTrigger(null)
         setFusionTripTrigger(null)
+        completedRef.current = false
 
+        // Use demo stream for per-trip CSV files
         const es = new EventSource(`${API_BASE}/motion/${selectedTrip}/stream`)
         setMotionEsRef(es)
 
@@ -136,6 +143,22 @@ export default function App() {
     const isStreaming = motionStatus === 'streaming' || audioStreamActive.isStreaming || fusionStream.isStreaming
     const allDone = motionStatus === 'done' && audioStreamActive.isDone && fusionStream.isDone
 
+    // Auto-complete: call /api/demo/:tripId/complete once when all streams finish
+    useEffect(() => {
+        if (allDone && selectedTrip && !completedRef.current) {
+            completedRef.current = true
+            fetch(`${API_BASE}/demo/${selectedTrip}/complete`, { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    console.log('✅ Trip completed and saved to DB:', data)
+                    setCompletedTrips(prev => prev.includes(selectedTrip) ? prev : [...prev, selectedTrip])
+                    // Force dashboard re-fetch so today's trips + velocity update
+                    setDashboardRefreshKey(k => k + 1)
+                })
+                .catch(err => console.error('Failed to complete trip:', err))
+        }
+    }, [allDone, selectedTrip])
+
     // RENDER LOGIN
     if (view === 'LOGIN') {
         return <Login onLogin={handleLogin} />
@@ -151,7 +174,10 @@ export default function App() {
                         <div className="header-title">Driver Pulse Dashboard</div>
                         <div className="header-subtitle">Welcome, {driverId}</div>
                     </div>
-                    <button className="btn-secondary" onClick={() => setView('LOGIN')}>Sign Out</button>
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                        <button className="btn-primary" onClick={() => setShowPicker(true)}>+ New Trip</button>
+                        <button className="btn-secondary" onClick={() => setView('LOGIN')}>Sign Out</button>
+                    </div>
                 </header>
 
                 <main className="main-content" style={{ padding: '2rem' }}>
@@ -159,8 +185,20 @@ export default function App() {
                         driverId={driverId}
                         onSelectTrip={handleSelectTrip}
                         onLayoutUpdate={() => { }}
+                        refreshKey={dashboardRefreshKey}
                     />
                 </main>
+
+                {showPicker && (
+                    <DemoTripPicker
+                        usedTrips={completedTrips}
+                        onSelect={(tripId) => {
+                            setShowPicker(false)
+                            handleSelectTrip(tripId)
+                        }}
+                        onClose={() => setShowPicker(false)}
+                    />
+                )}
             </div>
         )
     }
