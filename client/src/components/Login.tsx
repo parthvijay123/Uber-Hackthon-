@@ -17,7 +17,7 @@ export default function Login({ onLogin }: LoginProps) {
     return (
         <div className="login-container">
             <div className="login-card">
-                <div className="login-logo">🚗</div>
+                <div className="login-logo"><img src="/uber.png" alt="Uber" /></div>
                 <h2>Driver Pulse</h2>
                 <p>Enter your Driver ID to view pacing & safety forensics.</p>
 

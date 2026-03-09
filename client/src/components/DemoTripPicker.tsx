@@ -11,6 +11,7 @@ interface DemoTripMeta {
     duration_min: number
     fare: number
     distance_km: number
+    status: 'available' | 'ongoing' | 'completed'
 }
 
 interface Props {
@@ -50,8 +51,8 @@ export default function DemoTripPicker({ onSelect, onClose, usedTrips }: Props) 
             <div className="demo-picker-modal" onClick={e => e.stopPropagation()}>
                 <div className="demo-picker-header">
                     <div>
-                        <div className="demo-picker-title">🚗 Start New Trip</div>
-                        <div className="demo-picker-subtitle">Select a demo trip to simulate</div>
+                        <div className="demo-picker-title">Select Trip</div>
+                        <div className="demo-picker-subtitle">Select a route to begin</div>
                     </div>
                     <button className="demo-picker-close" onClick={onClose}>✕</button>
                 </div>
@@ -62,7 +63,7 @@ export default function DemoTripPicker({ onSelect, onClose, usedTrips }: Props) 
                             Loading trips…
                         </div>
                     ) : trips.map(trip => {
-                        const used = usedTrips.includes(trip.trip_id)
+                        const used = trip.status === 'completed'
                         return (
                             <div
                                 key={trip.trip_id}

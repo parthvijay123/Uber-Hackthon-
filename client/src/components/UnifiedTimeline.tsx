@@ -100,7 +100,7 @@ export default function UnifiedTimeline({
                 <div className="summary-row">
                     <div className="summary-stream-indicator">
                         <span className={`status-dot ${isFusionStreaming ? 'streaming' : isFusionDone ? 'done' : ''}`} />
-                        <span className="summary-label">Fusion</span>
+                        <span className="summary-label">Analysis</span>
                     </div>
                     <div className="summary-stats">
                         <span className="summary-stat">{flags.length} flags</span>
@@ -110,7 +110,7 @@ export default function UnifiedTimeline({
 
             {/* ── Section 1: FLAGS ─────────────────────────────────────── */}
             <div className="events-header" style={{ marginTop: '1rem' }}>
-                <div className="card-title" style={{ margin: 0 }}>⚡ Flagged Events</div>
+                <div className="card-title" style={{ margin: 0 }}>Flagged Moments</div>
                 {flags.length > 0 && (
                     <span className="events-count">{flags.length} flag{flags.length !== 1 ? 's' : ''}</span>
                 )}
@@ -119,14 +119,14 @@ export default function UnifiedTimeline({
             {nothingStarted && (
                 <div className="empty-state">
                     <div className="empty-state-icon">📡</div>
-                    <div className="empty-state-text">Select a trip and press Start to begin analysis.</div>
+                    <div className="empty-state-text">Start a trip to begin real-time analysis.</div>
                 </div>
             )}
 
             {flags.length === 0 && isFusionStreaming && (
                 <div className="empty-state">
                     <div className="empty-state-icon" style={{ fontSize: '2rem' }}>⏳</div>
-                    <div className="empty-state-text">Processing… flagged events will appear here shortly.</div>
+                    <div className="empty-state-text">Analysing sensor data — flagged moments will appear shortly.</div>
                 </div>
             )}
 

@@ -33,6 +33,7 @@ import {
     VelocityLogRecord,
     TripSummaryRecord,
 } from '../db/dbWriter'
+import pool from '../db/mysqlClient'
 import { FlagEvent, FlagSeverity } from '../../../shared/types'
 
 const router = Router()
@@ -123,8 +124,23 @@ function buildTripProcessor(tripId: string): TripProcessor {
 
 // ─── GET /api/demo/trips ──────────────────────────────────────────────────────
 
-router.get('/trips', (_req: Request, res: Response) => {
-    res.json(DEMO_TRIPS)
+router.get('/trips', async (_req: Request, res: Response) => {
+    try {
+        const [rows]: any = await pool.query(
+            `SELECT trip_id, trip_status FROM trips WHERE trip_id IN (?)`,
+            [DEMO_TRIPS.map(t => t.trip_id)]
+        )
+        const statuses = new Map<string, string>(rows.map((r: any) => [r.trip_id, r.trip_status]))
+
+        const tripsWithStatus = DEMO_TRIPS.map(t => ({
+            ...t,
+            status: statuses.get(t.trip_id) || 'available'
+        }))
+        res.json(tripsWithStatus)
+    } catch (err: any) {
+        console.error('[Demo] list trips error:', err.message)
+        res.json(DEMO_TRIPS.map(t => ({ ...t, status: 'available' })))
+    }
 })
 
 // ─── POST /api/demo/:tripId/start ─────────────────────────────────────────────
