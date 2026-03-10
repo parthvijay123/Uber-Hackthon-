@@ -35,7 +35,8 @@ async function setupSchema() {
         await pool.query('SET FOREIGN_KEY_CHECKS = 0;');
 
         for (const schema of schemas) {
-            console.log(`Creating "${schema.name}" table...`);
+            console.log(`Dropping and Recreating "${schema.name}" table...`);
+            await pool.query(`DROP TABLE IF EXISTS \`${schema.name}\`;`);
             await pool.query(schema.query);
             console.log(`✅ Table "${schema.name}" created or already exists.`);
 
