@@ -23,7 +23,12 @@ const app = express()
 // IMPORTANT: Render requires this
 const PORT = process.env.PORT || 3001
 
-app.use(cors({ origin: ["http://localhost:5173", "http://localhost:5174"] }))
+app.use(cors({
+  origin: [
+    "http://localhost:5173",
+    process.env.CLIENT_URL || ""
+  ].filter(Boolean)
+}))
 app.use(express.json())
 
 app.use("/api/trips", tripsRouter)
@@ -71,5 +76,7 @@ app.listen(PORT, async () => {
   }
 
 })
+
+
 
 export default app
