@@ -10,6 +10,9 @@ import demoRouter from "./routes/demoRouter"
 import pastTripsRouter from "./routes/pastTrips"
 
 import { wipeDemoData } from "./db/devReset"
+import { exec } from "child_process"
+import util from "util"
+const execAsync = util.promisify(exec)
 
 import * as path from "path"
 
@@ -40,6 +43,22 @@ app.use("/api/flags", createFlagsRouter())
 app.use("/api/driver", earningsRouter)
 app.use("/api/demo", demoRouter)
 app.use("/api/past-trips", pastTripsRouter)
+
+app.get("/api/db-init", async (req, res) => {
+    try {
+        console.log("Starting manual DB initialization...");
+        const { stdout: schemaOut } = await execAsync("node dist/src/db/setupSchema.js");
+        console.log("Schema Init:", schemaOut);
+        
+        const { stdout: seedOut } = await execAsync("node dist/src/db/seedDriverGoals.js");
+        console.log("Seed Init:", seedOut);
+
+        res.json({ success: true, message: "Database initialized successfully.", schemaOut, seedOut });
+    } catch (err: any) {
+        console.error("DB Init Error:", err);
+        res.status(500).json({ success: false, error: err.message, stack: err.stack });
+    }
+});
 
 app.listen(PORT, async () => {
 
