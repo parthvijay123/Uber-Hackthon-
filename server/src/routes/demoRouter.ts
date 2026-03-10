@@ -56,7 +56,7 @@ interface DemoTripMeta {
 
 const DEMO_TRIPS: DemoTripMeta[] = [
     {
-        trip_id: 'TRIP001',
+        trip_id: 'TRIP221',
         label: 'Morning Commute',
         description: 'Route with 3 audio conflict windows and a harsh braking event.',
         start_time: '07:00:00',   // 30 min into shift (shift starts 06:30)
@@ -66,7 +66,7 @@ const DEMO_TRIPS: DemoTripMeta[] = [
         distance_km: 12.5,
     },
     {
-        trip_id: 'TRIP002',
+        trip_id: 'TRIP222',
         label: 'Afternoon Run',
         description: 'Longer route with multiple motion events and moderate audio levels.',
         start_time: '09:30:00',   // 3 hrs into shift
@@ -76,7 +76,7 @@ const DEMO_TRIPS: DemoTripMeta[] = [
         distance_km: 18.2,
     },
     {
-        trip_id: 'TRIP003',
+        trip_id: 'TRIP223',
         label: 'Evening Peak',
         description: 'Rush-hour trip with elevated motion variability.',
         start_time: '12:00:00',   // 5.5 hrs into shift
@@ -91,12 +91,20 @@ const DEMO_TRIPS: DemoTripMeta[] = [
 
 const TRIP_LOADERS = new Map<string, { accel: AccelLoader; audio: AudioLoader; processor: any }>()
 
+// Map from demo trip ID to the actual CSV sensor file prefix
+const TRIP_CSV_MAP: Record<string, string> = {
+    'TRIP221': 'TRIP221',
+    'TRIP222': 'TRIP222',
+    'TRIP223': 'TRIP223',
+}
+
 function getLoaders(tripId: string) {
     if (TRIP_LOADERS.has(tripId)) return TRIP_LOADERS.get(tripId)!
 
     const csvLoader = new CsvLoader()
-    const accelPath = path.join(DATA_DIR, `${tripId}_accelerometer_data.csv`)
-    const audioPath = path.join(DATA_DIR, `${tripId}_audio_data.csv`)
+    const csvPrefix = TRIP_CSV_MAP[tripId] ?? tripId
+    const accelPath = path.join(DATA_DIR, `${csvPrefix}_accelerometer_data.csv`)
+    const audioPath = path.join(DATA_DIR, `${csvPrefix}_audio_data.csv`)
 
     const accel = new AccelLoader(csvLoader, accelPath)
     const audio = new AudioLoader(csvLoader, audioPath)
@@ -217,7 +225,7 @@ router.post('/:tripId/complete', async (req: Request, res: Response) => {
 
         // 4. Build and write trip summary
         const maxSev = computeMaxSeverity(flagEvents)
-        const stressScore = computeStressScore(flagEvents, motionEvents)
+        const stressScore = computeStressScore(flagEvents, motionEvents, meta.duration_min)
         const earningsVelocity = meta.fare / (meta.duration_min / 60)
 
         const summary: TripSummaryRecord = {
@@ -233,7 +241,7 @@ router.post('/:tripId/complete', async (req: Request, res: Response) => {
             flagged_moments_count: flagEvents.length,
             max_severity: maxSev,
             stress_score: parseFloat(stressScore.toFixed(3)),
-            trip_quality_rating: computeTripRating(stressScore, flagEvents.length),
+            trip_quality_rating: computeTripRating(stressScore, flagEvents.length, meta.duration_min),
         }
         await insertTripSummary(summary)
 
@@ -369,20 +377,68 @@ function computeMaxSeverity(flags: FlagEvent[]): 'none' | 'low' | 'medium' | 'hi
     return 'none'
 }
 
-function computeStressScore(flags: FlagEvent[], motionEvents: any[]): number {
+/**
+ * Stress score — calibrated so scores are meaningful and spread across the 0–1 range.
+ *
+ * Design principles:
+ *  - 100% is reserved ONLY for collision events (real emergency)
+ *  - A trip with many high-severity audio/motion flags → ~70–85%
+ *  - A trip with a few moderate flags → ~35–55%
+ *  - A clean trip with 0–1 low flags → ~0–25%
+ *
+ * Formula:
+ *  base    = compressed average flag score (max 0.55) — can never alone max the gauge
+ *  +boost  = conflict_moment bonus (up to +0.12) — concurrent audio+motion is extra risky
+ *  +sev    = worst-flag severity bonus (up to +0.12)
+ *  +density= flag rate bonus (up to +0.10) — dense flagging = sustained stress
+ *  +harsh  = harsh-braking bonus (up to +0.10)
+ *  max     = 0.93 (collision pushes to 1.0 separately)
+ */
+function computeStressScore(flags: FlagEvent[], motionEvents: any[], durationMin: number): number {
+    const dur = Math.max(1, durationMin)
+
+    // Collision = instant 1.0 (real emergency)
+    const hasCollision = motionEvents.some((e: any) => e.event_type === 'collision')
+    if (hasCollision) return 1.0
+
     if (flags.length === 0 && motionEvents.length === 0) return 0
-    const avgFlagScore = flags.length > 0
-        ? flags.reduce((sum, f) => sum + f.combined_score, 0) / flags.length
-        : 0
-    const harshCount = motionEvents.filter((e: any) => e.event_type === 'harsh' || e.event_type === 'collision').length
-    const harshPenalty = Math.min(0.3, harshCount * 0.05)
-    return Math.min(1.0, avgFlagScore + harshPenalty)
+
+    if (flags.length === 0) {
+        // Motion only, no flagged moments
+        const harshCount = motionEvents.filter((e: any) => e.event_type === 'harsh').length
+        return Math.min(0.15, harshCount * 0.03)
+    }
+
+    // 1. Base: simple average of combined_scores, compressed to max 0.55
+    //    This ensures flags alone can't push to 100%
+    const avgScore = flags.reduce((s, f) => s + f.combined_score, 0) / flags.length
+    const base = Math.min(0.55, avgScore * 0.62)
+
+    // 2. Conflict-moment bonus — simultaneous audio+motion is extra dangerous
+    const conflictCount = flags.filter(f => f.flag_type === 'conflict_moment').length
+    const conflictBoost = Math.min(0.12, conflictCount * 0.04)
+
+    // 3. Worst-flag severity bonus
+    const sevBoost = flags.some(f => f.severity === 'high') ? 0.12
+        : flags.some(f => f.severity === 'medium') ? 0.06
+            : 0.02
+
+    // 4. Flag density — stressful to have many flags per minute, but capped low
+    const flagsPerMin = flags.length / dur
+    const densityBoost = Math.min(0.10, flagsPerMin * 0.35)
+
+    // 5. Harsh-braking bonus
+    const harshCount = motionEvents.filter((e: any) => e.event_type === 'harsh').length
+    const harshBoost = Math.min(0.10, harshCount * 0.025)
+
+    return Math.min(0.93, base + conflictBoost + sevBoost + densityBoost + harshBoost)
 }
 
-function computeTripRating(stressScore: number, flagCount: number): 'excellent' | 'good' | 'fair' | 'poor' {
-    if (stressScore < 0.2 && flagCount <= 1) return 'excellent'
-    if (stressScore < 0.45 && flagCount <= 3) return 'good'
-    if (stressScore < 0.7) return 'fair'
+function computeTripRating(stressScore: number, flagCount: number, durationMin: number): 'excellent' | 'good' | 'fair' | 'poor' {
+    const flagsPerMin = flagCount / Math.max(1, durationMin)
+    if (stressScore < 0.22 && flagsPerMin < 0.12) return 'excellent'
+    if (stressScore < 0.45 && flagsPerMin < 0.30) return 'good'
+    if (stressScore < 0.68) return 'fair'
     return 'poor'
 }
 

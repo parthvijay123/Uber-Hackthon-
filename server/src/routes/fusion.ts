@@ -18,17 +18,17 @@ const DATA_DIR = path.join(__dirname, '../data')
 const accelLoader = new AccelLoader(
     csvLoader,
     [
-        path.join(DATA_DIR, 'TRIP001_accelerometer_data.csv'),
-        path.join(DATA_DIR, 'TRIP002_accelerometer_data.csv'),
-        path.join(DATA_DIR, 'TRIP003_accelerometer_data.csv'),
+        path.join(DATA_DIR, 'TRIP221_accelerometer_data.csv'),
+        path.join(DATA_DIR, 'TRIP222_accelerometer_data.csv'),
+        path.join(DATA_DIR, 'TRIP223_accelerometer_data.csv'),
     ]
 )
 const audioLoader = new AudioLoader(
     csvLoader,
     [
-        path.join(DATA_DIR, 'TRIP001_audio_data.csv'),
-        path.join(DATA_DIR, 'TRIP002_audio_data.csv'),
-        path.join(DATA_DIR, 'TRIP003_audio_data.csv'),
+        path.join(DATA_DIR, 'TRIP221_audio_data.csv'),
+        path.join(DATA_DIR, 'TRIP222_audio_data.csv'),
+        path.join(DATA_DIR, 'TRIP223_audio_data.csv'),
     ]
 )
 const motionProcessor = new MotionProcessor()

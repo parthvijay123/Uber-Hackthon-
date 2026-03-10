@@ -6,7 +6,7 @@
  */
 import pool from '../db/mysqlClient'
 
-const DEMO_TRIP_IDS = ['TRIP001', 'TRIP002', 'TRIP003']
+const DEMO_TRIP_IDS = ['TRIP221', 'TRIP222', 'TRIP223']
 const placeholders = DEMO_TRIP_IDS.map(() => '?').join(', ')
 
 export async function wipeDemoData(): Promise<void> {

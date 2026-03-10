@@ -6,8 +6,9 @@ import UnifiedTimeline from './components/UnifiedTimeline'
 import MasterDashboard from './components/MasterDashboard'
 import Login from './components/Login'
 import DemoTripPicker from './components/DemoTripPicker'
+import PastTrips from './components/PastTrips'
 
-const API_BASE = 'http://localhost:3001/api'
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3001/api'
 
 interface MotionStats {
     total: number
@@ -37,7 +38,7 @@ function calcAudioStats(events: AudioEvent[]) {
     }
 }
 
-type ViewState = 'LOGIN' | 'MASTER_DASHBOARD' | 'TRIP_ANALYSIS'
+type ViewState = 'LOGIN' | 'MASTER_DASHBOARD' | 'TRIP_ANALYSIS' | 'PAST_TRIPS'
 type StreamStatus = 'idle' | 'streaming' | 'done' | 'error'
 
 export default function App() {
@@ -133,6 +134,17 @@ export default function App() {
         setView('MASTER_DASHBOARD')
     }
 
+    const handleGoToPastTrips = () => {
+        resetAll()
+        setSelectedTrip(null)
+        setShowSummaryOverlay(false)
+        setView('PAST_TRIPS')
+    }
+
+    const handleBackFromPastTrips = () => {
+        setView('MASTER_DASHBOARD')
+    }
+
     const handleSelectTrip = (tripId: string) => {
         if (isStreaming) return
         const trip = trips.find(t => t.trip_id === tripId)
@@ -181,6 +193,11 @@ export default function App() {
         return <Login onLogin={handleLogin} />
     }
 
+    // RENDER PAST TRIPS
+    if (view === 'PAST_TRIPS') {
+        return <PastTrips driverId={driverId} onBack={handleBackFromPastTrips} />
+    }
+
     // RENDER MASTER DASHBOARD
     if (view === 'MASTER_DASHBOARD') {
         return (
@@ -193,6 +210,7 @@ export default function App() {
                     </div>
                     <div style={{ display: 'flex', gap: '0.625rem', alignItems: 'center', marginLeft: 'auto' }}>
                         <button className="btn-primary" onClick={() => setShowPicker(true)}>+ New Trip</button>
+                        <button className="btn-secondary" onClick={handleGoToPastTrips}>🗂 Past Trips</button>
                         <button className="btn-secondary" onClick={() => setView('LOGIN')}>Sign Out</button>
                     </div>
                 </header>

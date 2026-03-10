@@ -9,14 +9,14 @@ export class DataPreprocessor {
 
         const dataDir = path.resolve(__dirname, '../data')
         const accelFiles = [
-            path.join(dataDir, 'TRIP001_accelerometer_data.csv'),
-            path.join(dataDir, 'TRIP002_accelerometer_data.csv'),
-            path.join(dataDir, 'TRIP003_accelerometer_data.csv'),
+            path.join(dataDir, 'TRIP221_accelerometer_data.csv'),
+            path.join(dataDir, 'TRIP222_accelerometer_data.csv'),
+            path.join(dataDir, 'TRIP223_accelerometer_data.csv'),
         ]
         const audioFiles = [
-            path.join(dataDir, 'TRIP001_audio_data.csv'),
-            path.join(dataDir, 'TRIP002_audio_data.csv'),
-            path.join(dataDir, 'TRIP003_audio_data.csv'),
+            path.join(dataDir, 'TRIP221_audio_data.csv'),
+            path.join(dataDir, 'TRIP222_audio_data.csv'),
+            path.join(dataDir, 'TRIP223_audio_data.csv'),
         ]
 
         const cleanAccelFile = path.resolve(dataDir, 'clean_accelerometer.csv')

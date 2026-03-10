@@ -6,6 +6,7 @@ import audioRoutes from './routes/audioEvents'
 import fusionRoutes, { createFlagsRouter } from './routes/fusion'
 import earningsRouter from './routes/earnings'
 import demoRouter from './routes/demoRouter'
+import pastTripsRouter from './routes/pastTrips'
 import { wipeDemoData } from './db/devReset'
 import * as path from 'path'
 import { CsvLoader } from './loaders/csvLoader'
@@ -26,6 +27,7 @@ app.use('/api/fusion', fusionRoutes)
 app.use('/api/flags', createFlagsRouter())
 app.use('/api/driver', earningsRouter)
 app.use('/api/demo', demoRouter)
+app.use('/api/past-trips', pastTripsRouter)
 
 app.listen(PORT, async () => {
     // Wipe demo data on every dev restart for a clean test slate
