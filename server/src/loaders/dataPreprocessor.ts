@@ -7,7 +7,7 @@ export class DataPreprocessor {
         console.log("--- Starting TypeScript Data Preprocessor ---")
         const csvLoader = new CsvLoader()
 
-        const dataDir = path.resolve(__dirname, '../data')
+        const dataDir = path.resolve(process.cwd(), 'src/data')
         const accelFiles = [
             path.join(dataDir, 'TRIP221_accelerometer_data.csv'),
             path.join(dataDir, 'TRIP222_accelerometer_data.csv'),
