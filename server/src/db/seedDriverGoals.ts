@@ -1,42 +1,35 @@
 import pool from './mysqlClient';
-import { CsvLoader } from '../loaders/csvLoader';
-import * as path from 'path';
 
 async function seedDriverGoals() {
-    const csvLoader = new CsvLoader();
-    const dataPath = path.join(__dirname, '../data/driver_goals.csv');
-    
-    console.log(`Seeding driver goals from ${dataPath}...`);
-    
+    console.log('Seeding minimal required driver and goal data (only these rows)...');
+
     try {
-        const rows = csvLoader.parseWithHeaders<any>(dataPath, row => row);
-        
-        let driversSeeded = new Set();
-        
-        for (const row of rows) {
-            // First ensure the driver exists to satisfy foreign key constraints
-            if (!driversSeeded.has(row.driver_id)) {
-                await pool.query(
-                    `INSERT IGNORE INTO drivers (driver_id, name, city, shift_preference, avg_hours_per_day, avg_earnings_per_hr, experience_months, rating)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                    [row.driver_id, `Driver ${row.driver_id.replace('DRV', '')}`, 'Mumbai', 'full_day', 8.0, 200, 12, 4.9]
-                );
-                driversSeeded.add(row.driver_id);
-            }
-        
-            await pool.query(
-                `INSERT IGNORE INTO driver_goals
-                   (goal_id, driver_id, date, shift_start_time, shift_end_time,
-                    target_earnings, target_hours)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                [
-                    row.goal_id, row.driver_id, row.date, row.shift_start_time, row.shift_end_time,
-                    parseFloat(row.target_earnings), parseFloat(row.target_hours)
-                ]
-            );
-        }
-        
-        console.log(`✅ Seeded ${rows.length} driver goals and ${driversSeeded.size} drivers.`);
+        await pool.query('SET FOREIGN_KEY_CHECKS = 0');
+        await pool.query('TRUNCATE TABLE driver_goals');
+        await pool.query('TRUNCATE TABLE drivers');
+        await pool.query('SET FOREIGN_KEY_CHECKS = 1');
+
+        await pool.query(
+            `INSERT INTO drivers (
+                driver_id, name, city, shift_preference,
+                avg_hours_per_day, avg_earnings_per_hr, experience_months, rating
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            ['DRV001', 'Alex Kumar', 'Mumbai', 'morning', 7.5, 185.00, 18, 4.8]
+        );
+
+        await pool.query(
+            `INSERT INTO driver_goals (
+                goal_id, driver_id, date,
+                shift_start_time, shift_end_time,
+                target_earnings, target_hours,
+                current_earnings, current_hours,
+                status, goal_completion_forecast,
+                updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+            ['GOAL001', 'DRV001', '2024-02-06', '06:30:00', '14:30:00', 1400.00, 8.0, 1423.00, 7.5, 'achieved', 'on_track']
+        );
+
+        console.log('✅ Seed data inserted successfully.');
         process.exit(0);
     } catch (err: any) {
         console.error('❌ Error seeding driver goals:', err.message);

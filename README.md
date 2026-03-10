@@ -39,10 +39,17 @@ pip3 install pandas numpy
 
 (Only required if you run the Python preprocessing scripts.)
 
-### 5. Start the backend server
+### 5. Initialize database and start the backend server
+
+Run the setup script to create the database, tables, and seed the required minimal data:
 
 ⁠ bash
 cd server
+npm run setup
+
+Then start the server:
+
+⁠ bash
 npm run dev
  ⁠
 

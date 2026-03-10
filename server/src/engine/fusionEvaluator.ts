@@ -66,7 +66,6 @@ export class FusionEvaluator {
             )
 
             if (candidates.length > 0) {
-
                 const closest = candidates.reduce((best, cur) =>
                     Math.abs(cur.elapsed_s - motionEvent.elapsed_s) <
                         Math.abs(best.elapsed_s - motionEvent.elapsed_s)
