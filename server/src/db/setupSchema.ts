@@ -16,9 +16,14 @@ async function ensureDatabaseExists() {
     };
 
     const connection = await mysql.createConnection(dbConfig);
-    await connection.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`);
-    await connection.end();
-    console.log(`✅ Database '${dbName}' ensured exists.`);
+    try {
+        await connection.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`);
+        console.log(`✅ Database '${dbName}' ensured exists.`);
+    } catch (error: any) {
+        console.warn(`⚠️ Could not ensure database '${dbName}' exists (likely managed DB without CREATE privileges). Proceeding... Error: ${error.message}`);
+    } finally {
+        await connection.end();
+    }
 }
 
 async function setupSchema() {

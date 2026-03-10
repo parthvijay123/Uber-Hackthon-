@@ -2,11 +2,11 @@
   "name": "driver-pulse-server",
   "version": "1.0.0",
   "description": "Driver Pulse Motion Detection Server",
-  "main": "dist/index.js",
+  "main": "dist/src/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node dist/src/db/setupSchema.js && node dist/src/db/seedDriverGoals.js && node dist/src/index.js",
     "db-verify": "ts-node src/verifyDb.ts",
     "db-setup": "ts-node src/db/setupSchema.ts && ts-node src/db/seedDriverGoals.ts",
     "setup": "npm run db-setup"
