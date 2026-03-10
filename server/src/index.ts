@@ -26,7 +26,8 @@ const PORT = process.env.PORT || 3001
 app.use(cors({
   origin: [
     "http://localhost:5173",
-    process.env.CLIENT_URL || ""
+    process.env.CLIENT_URL || "",
+    "https://uber-hackthon-dm6d.vercel.app"
   ].filter(Boolean)
 }))
 app.use(express.json())
