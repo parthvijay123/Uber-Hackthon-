@@ -58,7 +58,7 @@ export class FusionEvaluator {
 
         // ── Pass 1: Pair concurrent motion+audio = conflict_moment ──────────────
         for (const motionEvent of significantMotion) {
-            // Audio must overlap within CONFLICT_WINDOW_S seconds of the motion event
+
             const candidates = significantAudio.filter(
                 (a) =>
                     !matchedAudioIds.has(a.event_id) &&
@@ -66,7 +66,7 @@ export class FusionEvaluator {
             )
 
             if (candidates.length > 0) {
-                // Pick the audio event closest in time
+
                 const closest = candidates.reduce((best, cur) =>
                     Math.abs(cur.elapsed_s - motionEvent.elapsed_s) <
                         Math.abs(best.elapsed_s - motionEvent.elapsed_s)
@@ -82,7 +82,7 @@ export class FusionEvaluator {
             }
         }
 
-        // ── Pass 2: Unmatched significant motion → motion_only ───────────────────
+
         for (const motionEvent of significantMotion) {
             if (!matchedMotionIds.has(motionEvent.event_id)) {
                 results.push(
@@ -91,7 +91,7 @@ export class FusionEvaluator {
             }
         }
 
-        // ── Pass 3: Unmatched significant audio → audio_only ────────────────────
+
         for (const audioEvent of significantAudio) {
             if (!matchedAudioIds.has(audioEvent.event_id)) {
                 results.push(

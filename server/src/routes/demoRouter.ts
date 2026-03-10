@@ -10,6 +10,7 @@
  */
 import { Router, Request, Response } from 'express'
 import * as path from 'path'
+import * as fs from 'fs/promises'
 import { v4 as uuid } from 'uuid'
 import { CsvLoader } from '../loaders/csvLoader'
 import { AccelLoader } from '../loaders/accelLoader'
@@ -34,7 +35,7 @@ import {
     TripSummaryRecord,
 } from '../db/dbWriter'
 import pool from '../db/mysqlClient'
-import { FlagEvent, FlagSeverity } from '../shared/types'
+import { FlagEvent, FlagSeverity, FlagType } from '../shared/types'
 
 const router = Router()
 const DATA_DIR = path.join(__dirname, '../data')
@@ -114,10 +115,10 @@ function getLoaders(tripId: string) {
     return entry
 }
 
-// One shared EventStore for the demo
+
 const demoEventStore = new EventStore()
 
-// One TripProcessor that is re-created per trip to swap loaders
+
 function buildTripProcessor(tripId: string): TripProcessor {
     const { accel, audio } = getLoaders(tripId)
     return new TripProcessor(
@@ -129,8 +130,6 @@ function buildTripProcessor(tripId: string): TripProcessor {
         demoEventStore
     )
 }
-
-// ─── GET /api/demo/trips ──────────────────────────────────────────────────────
 
 router.get('/trips', async (_req: Request, res: Response) => {
     try {
@@ -151,8 +150,6 @@ router.get('/trips', async (_req: Request, res: Response) => {
     }
 })
 
-// ─── POST /api/demo/:tripId/start ─────────────────────────────────────────────
-
 router.post('/:tripId/start', async (req: Request, res: Response) => {
     const { tripId } = req.params
     const meta = DEMO_TRIPS.find(t => t.trip_id === tripId)
@@ -161,12 +158,12 @@ router.post('/:tripId/start', async (req: Request, res: Response) => {
     }
 
     try {
-        // Clear any stale in-memory state from a previous run
+
         demoEventStore.clear(tripId)
         demoEventStore.clearAudio(tripId)
         demoEventStore.clearFlags(tripId)
 
-        // Insert trip row (IGNORE if already exists from a previous demo run)
+
         await insertTripRecord({
             trip_id: meta.trip_id,
             driver_id: DRIVER_ID,
@@ -184,8 +181,6 @@ router.post('/:tripId/start', async (req: Request, res: Response) => {
         res.status(500).json({ error: err.message })
     }
 })
-
-// ─── POST /api/demo/:tripId/complete ─────────────────────────────────────────
 
 router.post('/:tripId/complete', async (req: Request, res: Response) => {
     const { tripId } = req.params
@@ -225,7 +220,8 @@ router.post('/:tripId/complete', async (req: Request, res: Response) => {
 
         // 4. Build and write trip summary
         const maxSev = computeMaxSeverity(flagEvents)
-        const stressScore = computeStressScore(flagEvents, motionEvents, meta.duration_min)
+        const conflictFlags = flagEvents.filter(f => f.flag_type === FlagType.conflict_moment)
+        const stressScore = computeStressScore(conflictFlags, meta.duration_min)
         const earningsVelocity = meta.fare / (meta.duration_min / 60)
 
         const summary: TripSummaryRecord = {
@@ -238,10 +234,10 @@ router.post('/:tripId/complete', async (req: Request, res: Response) => {
             earnings_velocity: parseFloat(earningsVelocity.toFixed(2)),
             motion_events_count: motionEvents.length,
             audio_events_count: audioEvents.length,
-            flagged_moments_count: flagEvents.length,
+            flagged_moments_count: conflictFlags.length,
             max_severity: maxSev,
             stress_score: parseFloat(stressScore.toFixed(3)),
-            trip_quality_rating: computeTripRating(stressScore, flagEvents.length, meta.duration_min),
+            trip_quality_rating: computeTripRating(stressScore, conflictFlags.length, meta.duration_min),
         }
         await insertTripSummary(summary)
 
@@ -283,7 +279,21 @@ router.post('/:tripId/complete', async (req: Request, res: Response) => {
         }
         await appendVelocityLog(velocityLog)
 
-        console.log(`[Demo] Completed ${tripId}: fare=₹${meta.fare}, velocity=${currentVelocity.toFixed(1)}/hr, status=${forecastStatus}`)
+        // 6. Write a showcase JSON log under /Design (for presentations)
+        await writeShowcaseLog({
+            tripMeta: meta,
+            motionEvents,
+            audioEvents,
+            flagEvents,
+            summary,
+            velocity: velocityLog,
+        })
+
+        console.log(
+            `[Demo] Completed ${tripId}: fare=₹${meta.fare}, velocity=${currentVelocity.toFixed(
+                1
+            )}/hr, status=${forecastStatus}`
+        )
 
         res.json({
             success: true,
@@ -315,7 +325,9 @@ router.get('/stream/:tripId', async (req: Request, res: Response) => {
         const processor = buildTripProcessor(tripId)
         const result = await processor.processTrip(tripId)
 
-        const flags = result.flag_events as FlagEvent[]
+        const flags = (result.flag_events as FlagEvent[]).slice().sort(
+            (a, b) => a.elapsed_s - b.elapsed_s
+        )
 
         if (flags.length === 0) {
             res.write(`data: SUMMARY:${JSON.stringify({
@@ -329,9 +341,20 @@ router.get('/stream/:tripId', async (req: Request, res: Response) => {
             return
         }
 
-        let index = 0
-        const interval = setInterval(() => {
-            if (index >= flags.length) {
+        // Stream flags spaced out in (accelerated) trip-time order so they
+        // appear to happen "in real time" along the trip timeline.
+        const SPEED_FACTOR_MS_PER_TRIP_SEC = 50 // 1s of trip time = 50ms real
+        const MIN_GAP_MS = 250
+
+        let cancelled = false
+        req.on('close', () => {
+            cancelled = true
+        })
+
+        const streamFlag = (idx: number, prevElapsed: number) => {
+            if (cancelled) return
+
+            if (idx >= flags.length) {
                 res.write(`data: SUMMARY:${JSON.stringify({
                     motion_count: result.motion_events.length,
                     audio_count: result.audio_events.length,
@@ -339,15 +362,23 @@ router.get('/stream/:tripId', async (req: Request, res: Response) => {
                     duration_ms: result.duration_ms,
                 })}\n\n`)
                 res.write('data: DONE\n\n')
-                clearInterval(interval)
                 res.end()
                 return
             }
-            res.write(`data: ${JSON.stringify(flags[index])}\n\n`)
-            index++
-        }, 400)
 
-        req.on('close', () => clearInterval(interval))
+            const flag = flags[idx]
+            const deltaTripSeconds = Math.max(0, flag.elapsed_s - prevElapsed)
+            const delayMs = Math.max(MIN_GAP_MS, deltaTripSeconds * SPEED_FACTOR_MS_PER_TRIP_SEC)
+
+            setTimeout(() => {
+                if (cancelled) return
+                res.write(`data: ${JSON.stringify(flag)}\n\n`)
+                streamFlag(idx + 1, flag.elapsed_s)
+            }, delayMs)
+        }
+
+        // Kick off the first flag immediately (with a small minimum delay).
+        streamFlag(0, 0)
     } catch (err: any) {
         console.error('[Demo] stream error:', err.message)
         res.write('data: ERROR\n\n')
@@ -377,61 +408,24 @@ function computeMaxSeverity(flags: FlagEvent[]): 'none' | 'low' | 'medium' | 'hi
     return 'none'
 }
 
-/**
- * Stress score — calibrated so scores are meaningful and spread across the 0–1 range.
- *
- * Design principles:
- *  - 100% is reserved ONLY for collision events (real emergency)
- *  - A trip with many high-severity audio/motion flags → ~70–85%
- *  - A trip with a few moderate flags → ~35–55%
- *  - A clean trip with 0–1 low flags → ~0–25%
- *
- * Formula:
- *  base    = compressed average flag score (max 0.55) — can never alone max the gauge
- *  +boost  = conflict_moment bonus (up to +0.12) — concurrent audio+motion is extra risky
- *  +sev    = worst-flag severity bonus (up to +0.12)
- *  +density= flag rate bonus (up to +0.10) — dense flagging = sustained stress
- *  +harsh  = harsh-braking bonus (up to +0.10)
- *  max     = 0.93 (collision pushes to 1.0 separately)
- */
-function computeStressScore(flags: FlagEvent[], motionEvents: any[], durationMin: number): number {
-    const dur = Math.max(1, durationMin)
-
-    // Collision = instant 1.0 (real emergency)
-    const hasCollision = motionEvents.some((e: any) => e.event_type === 'collision')
-    if (hasCollision) return 1.0
-
-    if (flags.length === 0 && motionEvents.length === 0) return 0
-
-    if (flags.length === 0) {
-        // Motion only, no flagged moments
-        const harshCount = motionEvents.filter((e: any) => e.event_type === 'harsh').length
-        return Math.min(0.15, harshCount * 0.03)
+function computeStressScore(conflictFlags: FlagEvent[], tripDurationMin: number): number {
+    // No fused conflict moments = no stress.
+    if (conflictFlags.length === 0 || tripDurationMin <= 0) {
+        return 0
     }
 
-    // 1. Base: simple average of combined_scores, compressed to max 0.55
-    //    This ensures flags alone can't push to 100%
-    const avgScore = flags.reduce((s, f) => s + f.combined_score, 0) / flags.length
-    const base = Math.min(0.55, avgScore * 0.62)
+    const avgConflictScore =
+        conflictFlags.reduce((sum, f) => sum + f.combined_score, 0) / conflictFlags.length
 
-    // 2. Conflict-moment bonus — simultaneous audio+motion is extra dangerous
-    const conflictCount = flags.filter(f => f.flag_type === 'conflict_moment').length
-    const conflictBoost = Math.min(0.12, conflictCount * 0.04)
+    // Frequency factor: more conflict flags in a shorter trip => higher stress.
+    // Example: 1 flag in 20 min → low factor; 4+ flags in 20 min → factor ~1.
+    const densityPerMin = conflictFlags.length / Math.max(tripDurationMin, 1)
+    const densityFactor = Math.min(1, densityPerMin * 5) // 1 flag every 5min ≈ factor 1
 
-    // 3. Worst-flag severity bonus
-    const sevBoost = flags.some(f => f.severity === 'high') ? 0.12
-        : flags.some(f => f.severity === 'medium') ? 0.06
-            : 0.02
+    const rawStress = avgConflictScore * densityFactor
 
-    // 4. Flag density — stressful to have many flags per minute, but capped low
-    const flagsPerMin = flags.length / dur
-    const densityBoost = Math.min(0.10, flagsPerMin * 0.35)
-
-    // 5. Harsh-braking bonus
-    const harshCount = motionEvents.filter((e: any) => e.event_type === 'harsh').length
-    const harshBoost = Math.min(0.10, harshCount * 0.025)
-
-    return Math.min(0.93, base + conflictBoost + sevBoost + densityBoost + harshBoost)
+    // Bound to [0, 1] in case combined scores change in future.
+    return Math.min(1.0, rawStress)
 }
 
 function computeTripRating(stressScore: number, flagCount: number, durationMin: number): 'excellent' | 'good' | 'fair' | 'poor' {
@@ -448,6 +442,87 @@ function computeForecastStatus(delta: number, targetVelocity: number): 'ahead' |
     if (pct >= -0.05) return 'on_track'
     if (pct >= -0.2) return 'at_risk'
     return 'behind'
+}
+
+// ─── Showcase JSON log writer ───────────────────────────────────────────────────
+
+async function writeShowcaseLog(payload: {
+    tripMeta: DemoTripMeta
+    motionEvents: any[]
+    audioEvents: any[]
+    flagEvents: FlagEvent[]
+    summary: TripSummaryRecord
+    velocity: VelocityLogRecord
+}): Promise<void> {
+    try {
+        // Design folder lives at repo root: ../../Design from routes directory.
+        const designDir = path.join(__dirname, '../../Design')
+        await fs.mkdir(designDir, { recursive: true })
+
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+        const fileName = `showcase_${payload.tripMeta.trip_id}_${timestamp}.json`
+        const filePath = path.join(designDir, fileName)
+
+        const motionById = new Map<string, any>(
+            payload.motionEvents.map((m: any) => [m.event_id, m])
+        )
+        const audioById = new Map<string, any>(
+            payload.audioEvents.map((a: any) => [a.event_id, a])
+        )
+
+        const enrichedFlags = payload.flagEvents.map((f) => {
+            const motion = f.motion_event_id ? motionById.get(f.motion_event_id) : null
+            const audio = f.audio_event_id ? audioById.get(f.audio_event_id) : null
+
+            let category: string = 'flag'
+            if (motion && audio) {
+                const sustained =
+                    typeof audio.is_sustained === 'boolean' && audio.is_sustained
+                        ? '_sustained_stress'
+                        : ''
+                category = `motion_plus_audio${sustained}`
+            } else if (motion) {
+                category = 'motion_only'
+            } else if (audio) {
+                const sustained =
+                    typeof audio.is_sustained === 'boolean' && audio.is_sustained
+                        ? '_sustained_stress'
+                        : ''
+                category = `audio_only${sustained}`
+            }
+
+            return {
+                ...f,
+                event_category: category,
+                motion_event_type: motion?.event_type ?? null,
+                audio_class: audio?.audio_class ?? null,
+                audio_severity: audio?.severity ?? null,
+                audio_is_sustained: audio?.is_sustained ?? null,
+            }
+        })
+
+        const body = {
+            generated_at: new Date().toISOString(),
+            trip_meta: payload.tripMeta,
+            summary: payload.summary,
+            velocity_snapshot: payload.velocity,
+            counts: {
+                motion_events: payload.motionEvents.length,
+                audio_events: payload.audioEvents.length,
+                flag_events: payload.flagEvents.length,
+            },
+            // For showcase purposes we include full events so they can be
+            // visualized later if needed.
+            motion_events: payload.motionEvents,
+            audio_events: payload.audioEvents,
+            flag_events: enrichedFlags,
+        }
+
+        await fs.writeFile(filePath, JSON.stringify(body, null, 2), 'utf8')
+        console.log('[Demo] Wrote showcase log to', filePath)
+    } catch (err: any) {
+        console.error('[Demo] Failed to write showcase log:', err.message)
+    }
 }
 
 export { demoEventStore }
