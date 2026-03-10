@@ -32,6 +32,8 @@ async function setupSchema() {
     try {
         await ensureDatabaseExists();
 
+        await pool.query('SET FOREIGN_KEY_CHECKS = 0;');
+
         for (const schema of schemas) {
             console.log(`Creating "${schema.name}" table...`);
             await pool.query(schema.query);
@@ -42,10 +44,12 @@ async function setupSchema() {
             console.table(rows);
         }
 
+        await pool.query('SET FOREIGN_KEY_CHECKS = 1;');
         console.log('\n✅ All schemas processed successfully.');
         process.exit(0);
     } catch (error: any) {
         console.error('❌ Error during schema setup:', error.message);
+        await pool.query('SET FOREIGN_KEY_CHECKS = 1;');
         process.exit(1);
     }
 }
