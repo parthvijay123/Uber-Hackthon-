@@ -1,4 +1,4 @@
-import { AudioEvent, AudioSeverity } from '../../../shared/types'
+import { AudioEvent, AudioSeverity } from '../shared/types'
 
 interface AudioEventCardProps {
     event: AudioEvent

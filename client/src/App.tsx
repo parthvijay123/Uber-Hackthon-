@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { MotionEvent, MotionClass, AudioEvent } from '../../shared/types'
+import { MotionEvent, MotionClass, AudioEvent } from './shared/types'
 import { useAudioStream } from './hooks/useAudioStream'
 import { useFusionStream } from './hooks/useFlags'
 import UnifiedTimeline from './components/UnifiedTimeline'
@@ -8,7 +8,9 @@ import Login from './components/Login'
 import DemoTripPicker from './components/DemoTripPicker'
 import PastTrips from './components/PastTrips'
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3001/api'
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:3001/api"
+
+console.log("API_BASE:", API_BASE)
 
 interface MotionStats {
     total: number

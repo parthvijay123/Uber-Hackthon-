@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { DriverDashboardData, VelocityLog } from '../../../shared/types'
+import { DriverDashboardData, VelocityLog } from '../shared/types'
 
 interface MasterDashboardProps {
     driverId: string

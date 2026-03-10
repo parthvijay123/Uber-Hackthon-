@@ -21,13 +21,13 @@
         "noFallthroughCasesInSwitch": true,
         "paths": {
             "shared/*": [
-                "../shared/*"
+                "src/shared/*"
             ]
         }
     },
     "include": [
         "src",
-        "../shared"
+        "src/shared"
     ],
     "references": [
         {

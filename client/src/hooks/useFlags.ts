@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { FlagEvent } from '../../../shared/types'
+import { FlagEvent } from '../shared/types'
 
 const API_BASE = 'http://localhost:3001/api'
 
