@@ -11,6 +11,19 @@ const router = Router()
 
 // ─── GET /api/driver/:driverId/dashboard ─────────────────────────────────────
 
+router.get('/:driverId/debug', async (req: Request, res: Response) => {
+    const { driverId } = req.params;
+    try {
+        const [goalRows]: any = await pool.query(
+            `SELECT * FROM driver_goals WHERE driver_id = ? ORDER BY date DESC LIMIT 1`,
+            [driverId]
+        );
+        res.json({ success: true, goalRows });
+    } catch (err: any) {
+        res.status(500).json({ success: false, error: err.message, stack: err.stack });
+    }
+});
+
 router.get('/:driverId/dashboard', async (req: Request, res: Response) => {
     const { driverId } = req.params
 
