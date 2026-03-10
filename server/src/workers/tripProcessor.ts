@@ -25,7 +25,7 @@ import {
     AudioSample,
     MotionEvent,
     TripAnalysisResult,
-} from '../../../shared/types'
+} from '../shared/types'
 
 // ─── Helper: build 30-second audio batch windows ─────────────────────────────
 

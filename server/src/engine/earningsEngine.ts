@@ -1,6 +1,6 @@
 import fs from 'fs'
 const csvParser = require('csv-parser')
-import { DriverGoal, VelocityLog, PastTripInfo, DriverDashboardData, ForecastStatus } from '../../../shared/types'
+import { DriverGoal, VelocityLog, PastTripInfo, DriverDashboardData, ForecastStatus } from '../shared/types'
 
 export class EarningsLoader {
     private goalsMap = new Map<string, DriverGoal>()

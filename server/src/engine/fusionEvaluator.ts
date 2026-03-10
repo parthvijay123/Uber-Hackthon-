@@ -6,7 +6,7 @@ import {
     FlagType,
     MotionEvent,
     MotionClass,
-} from '../../../shared/types'
+} from '../shared/types'
 
 /**
  * FusionEvaluator — Real-life conflict detection.

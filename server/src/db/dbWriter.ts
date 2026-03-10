@@ -5,7 +5,7 @@
  * so re-running a trip through the demo does not duplicate rows.
  */
 import pool from './mysqlClient'
-import { MotionEvent, AudioEvent, FlagEvent } from '../../../shared/types'
+import { MotionEvent, AudioEvent, FlagEvent } from '../shared/types'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

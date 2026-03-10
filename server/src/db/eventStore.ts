@@ -1,4 +1,4 @@
-import { MotionEvent, AudioEvent, FlagEvent } from '../../../shared/types'
+import { MotionEvent, AudioEvent, FlagEvent } from '../shared/types'
 
 export class EventStore {
     // Motion store

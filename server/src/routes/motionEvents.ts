@@ -6,7 +6,7 @@ import { AccelLoader } from '../loaders/accelLoader'
 import { WindowBuilder } from '../engine/windowBuilder'
 import { MotionProcessor } from '../engine/motionProcessor'
 import { EventStore } from '../db/eventStore'
-import { MotionEvent } from '../../../shared/types'
+import { MotionEvent } from '../shared/types'
 
 const router = Router()
 const CSV_PATH = path.join(__dirname, '../data/clean_accelerometer.csv')

@@ -5,7 +5,7 @@ import {
     AudioEvent,
     AudioSample,
     AudioSeverity,
-} from '../../../shared/types'
+} from '../shared/types'
 
 // ─── AudioSpikeTracker ────────────────────────────────────────────────────────
 

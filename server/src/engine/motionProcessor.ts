@@ -1,4 +1,4 @@
-import { AccelSample, BatchWindow, MotionClass, WindowResult } from '../../../shared/types'
+import { AccelSample, BatchWindow, MotionClass, WindowResult } from '../shared/types'
 
 export class MotionProcessor {
     process(window: BatchWindow): WindowResult {

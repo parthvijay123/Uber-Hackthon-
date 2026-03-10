@@ -4,7 +4,7 @@ import { CsvLoader } from '../loaders/csvLoader'
 import { AudioLoader } from '../loaders/audioLoader'
 import { AudioProcessor } from '../engine/audioProcessor'
 import { EventStore } from '../db/eventStore'
-import { AudioBatchWindow, AudioEvent, AudioSample } from '../../../shared/types'
+import { AudioBatchWindow, AudioEvent, AudioSample } from '../shared/types'
 
 const router = Router()
 const AUDIO_CSV_PATH = path.join(__dirname, '../data/clean_audio.csv')

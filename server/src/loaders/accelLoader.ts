@@ -1,5 +1,5 @@
 import { CsvLoader } from './csvLoader'
-import { AccelSample } from '../../../shared/types'
+import { AccelSample } from '../shared/types'
 
 export class AccelLoader {
     private cache: AccelSample[] | null = null

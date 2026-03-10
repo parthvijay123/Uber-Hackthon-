@@ -1,4 +1,4 @@
-import { AccelSample, BatchWindow } from '../../../shared/types'
+import { AccelSample, BatchWindow } from '../shared/types'
 
 export class WindowBuilder {
     buildWindows(samples: AccelSample[], windowSizeSeconds: number): BatchWindow[] {

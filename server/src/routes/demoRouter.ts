@@ -34,7 +34,7 @@ import {
     TripSummaryRecord,
 } from '../db/dbWriter'
 import pool from '../db/mysqlClient'
-import { FlagEvent, FlagSeverity } from '../../../shared/types'
+import { FlagEvent, FlagSeverity } from '../shared/types'
 
 const router = Router()
 const DATA_DIR = path.join(__dirname, '../data')
