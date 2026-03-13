@@ -21,6 +21,9 @@ import { FusionEvaluator } from '../engine/fusionEvaluator'
 import { EventStore } from '../db/eventStore'
 import { TripProcessor } from '../workers/tripProcessor'
 import {
+    wipeDemoData
+} from '../db/devReset'
+import {
     insertTripRecord,
     completeTripRecord,
     insertMotionEvents,
@@ -96,7 +99,7 @@ const TRIP_LOADERS = new Map<string, { accel: AccelLoader; audio: AudioLoader; p
 const TRIP_CSV_MAP: Record<string, string> = {
     'TRIP221': 'TRIP221',
     'TRIP222': 'TRIP222',
-    'TRIP223': 'TRIP2223',
+    'TRIP223': 'TRIP223',
 }
 
 function getLoaders(tripId: string) {
@@ -104,8 +107,8 @@ function getLoaders(tripId: string) {
 
     const csvLoader = new CsvLoader()
     const csvPrefix = TRIP_CSV_MAP[tripId] ?? tripId
-    const accelPath = tripId === 'TRIP223' ? path.join(DATA_DIR, 'TRIP2223_accelerometer_data.csv') : path.join(DATA_DIR, `${csvPrefix}_accelerometer_data.csv`);
-    const audioPath = tripId === 'TRIP223' ? path.join(DATA_DIR, 'TRIP223_audio_data.csv') : path.join(DATA_DIR, `${csvPrefix}_audio_data.csv`);
+    const accelPath = path.join(DATA_DIR, `${csvPrefix}_accelerometer_data.csv`);
+    const audioPath = path.join(DATA_DIR, `${csvPrefix}_audio_data.csv`);
 
     const accel = new AccelLoader(csvLoader, accelPath)
     const audio = new AudioLoader(csvLoader, audioPath)
@@ -131,6 +134,17 @@ function buildTripProcessor(tripId: string): TripProcessor {
     )
 }
 
+router.post('/reset', async (req: Request, res: Response) => {
+    try {
+        await wipeDemoData()
+        console.log('[Demo] Manual reset triggered')
+        res.json({ success: true, message: 'Database reset and seeded for Driver 1' })
+    } catch (err: any) {
+        console.error('[Demo] reset error:', err.message)
+        res.status(500).json({ error: err.message })
+    }
+})
+
 router.get('/trips', async (_req: Request, res: Response) => {
     try {
         const [rows]: any = await pool.query(
@@ -152,6 +166,8 @@ router.get('/trips', async (_req: Request, res: Response) => {
 
 router.post('/:tripId/start', async (req: Request, res: Response) => {
     const { tripId } = req.params
+    const { driverId } = req.body // Allow dynamic driver ID if provided
+    const targetDriverId = driverId || DRIVER_ID
     const meta = DEMO_TRIPS.find(t => t.trip_id === tripId)
     if (!meta) {
         return res.status(404).json({ error: `Unknown demo trip: ${tripId}` })
@@ -166,7 +182,7 @@ router.post('/:tripId/start', async (req: Request, res: Response) => {
 
         await insertTripRecord({
             trip_id: meta.trip_id,
-            driver_id: DRIVER_ID,
+            driver_id: targetDriverId,
             date: meta.date,
             start_time: meta.start_time,
             fare: meta.fare,
@@ -174,8 +190,8 @@ router.post('/:tripId/start', async (req: Request, res: Response) => {
             dropoff_location: `Demo: ${meta.label} End`,
         })
 
-        console.log(`[Demo] Started trip ${tripId}`)
-        res.json({ success: true, trip_id: tripId, meta })
+        console.log(`[Demo] Started trip ${tripId} for driver ${targetDriverId}`)
+        res.json({ success: true, trip_id: tripId, driver_id: targetDriverId, meta })
     } catch (err: any) {
         console.error('[Demo] start error:', err.message)
         res.status(500).json({ error: err.message })
@@ -184,6 +200,8 @@ router.post('/:tripId/start', async (req: Request, res: Response) => {
 
 router.post('/:tripId/complete', async (req: Request, res: Response) => {
     const { tripId } = req.params
+    const { driverId } = req.body // Match the driver who started
+    const targetDriverId = driverId || DRIVER_ID
     const meta = DEMO_TRIPS.find(t => t.trip_id === tripId)
     if (!meta) {
         return res.status(404).json({ error: `Unknown demo trip: ${tripId}` })
@@ -198,7 +216,7 @@ router.post('/:tripId/complete', async (req: Request, res: Response) => {
         if (motionEvents.length === 0) {
             console.log(`[Demo] EventStore empty for ${tripId}, running processor now...`)
             const processor = buildTripProcessor(tripId)
-            const result = await processor.processTrip(tripId)
+            const result = await processor.processTrip(tripId, targetDriverId)
             motionEvents = result.motion_events
             audioEvents = result.audio_events
             flagEvents = result.flag_events as FlagEvent[]
@@ -226,7 +244,7 @@ router.post('/:tripId/complete', async (req: Request, res: Response) => {
 
         const summary: TripSummaryRecord = {
             trip_id: tripId,
-            driver_id: DRIVER_ID,
+            driver_id: targetDriverId,
             date: meta.date,
             duration_min: meta.duration_min,
             distance_km: meta.distance_km,
@@ -242,9 +260,9 @@ router.post('/:tripId/complete', async (req: Request, res: Response) => {
         await insertTripSummary(summary)
 
         // 5. Compute and write velocity log row
-        const goal = await getDriverGoal(DRIVER_ID, meta.date)
-        const cumulativeEarnings = await getCumulativeEarnings(DRIVER_ID, meta.date, tripId)
-        const tripsCompleted = await getCompletedTripCount(DRIVER_ID, meta.date)
+        const goal = await getDriverGoal(targetDriverId, meta.date)
+        const cumulativeEarnings = await getCumulativeEarnings(targetDriverId, meta.date, tripId)
+        const tripsCompleted = await getCompletedTripCount(targetDriverId, meta.date)
 
         // Elapsed hours: time from shift start to end of this trip.
         // Guard: never let elapsed be less than the trip's own duration
@@ -265,7 +283,7 @@ router.post('/:tripId/complete', async (req: Request, res: Response) => {
 
         const velocityLog: VelocityLogRecord = {
             log_id: `VL-${tripId}-${Date.now()}`,
-            driver_id: DRIVER_ID,
+            driver_id: targetDriverId,
             goal_id: GOAL_ID,
             trip_id: tripId,
             timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
@@ -311,6 +329,7 @@ router.post('/:tripId/complete', async (req: Request, res: Response) => {
 // This pre-processes using per-trip CSV files and populates demoEventStore.
 router.get('/stream/:tripId', async (req: Request, res: Response) => {
     const { tripId } = req.params
+    const driverId = (req.query.driverId as string) || DRIVER_ID
     const meta = DEMO_TRIPS.find(t => t.trip_id === tripId)
     if (!meta) {
         return res.status(404).json({ error: `Unknown demo trip: ${tripId}` })
@@ -323,7 +342,7 @@ router.get('/stream/:tripId', async (req: Request, res: Response) => {
 
     try {
         const processor = buildTripProcessor(tripId)
-        const result = await processor.processTrip(tripId)
+        const result = await processor.processTrip(tripId, driverId)
 
         const flags = (result.flag_events as FlagEvent[]).slice().sort(
             (a, b) => a.elapsed_s - b.elapsed_s

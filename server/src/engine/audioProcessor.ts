@@ -84,12 +84,12 @@ export class AudioProcessor {
     // ── Minimum sustained seconds required per peak-dB level
     // Spikes that don't meet the minimum duration for their level are discarded.
     private readonly MIN_DURATION_RULES: Array<{ minDb: number; minSecs: number }> = [
-        { minDb: 90, minSecs: 15 },   // ≥90 dB → must last ≥15s
-        { minDb: 85, minSecs: 22 },   // ≥85 dB → must last ≥22s (midpoint of 20-25)
-        { minDb: 80, minSecs: 30 },   // ≥80 dB → must last ≥30s
-        { minDb: 75, minSecs: 50 },   // ≥75 dB → must last ≥50s
-        { minDb: 65, minSecs: 30 },   // ≥65 dB → must last ≥30s
-        { minDb: 0, minSecs: 10 },   // anything else → must last ≥10s (ignore tiny blips)
+        { minDb: 90, minSecs: 5 },    // ≥90 dB → must last ≥5s
+        { minDb: 85, minSecs: 8 },    // ≥85 dB → must last ≥8s
+        { minDb: 80, minSecs: 12 },   // ≥80 dB → must last ≥12s
+        { minDb: 75, minSecs: 15 },   // ≥75 dB → must last ≥15s
+        { minDb: 65, minSecs: 20 },   // ≥65 dB → must last ≥20s
+        { minDb: 0, minSecs: 3 },     // anything else → must last ≥3s
     ]
 
     reset(): void {

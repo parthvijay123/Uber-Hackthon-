@@ -10,10 +10,30 @@ const DEMO_TRIP_IDS = ['TRIP221', 'TRIP222', 'TRIP223']
 const placeholders = DEMO_TRIP_IDS.map(() => '?').join(', ')
 
 export async function wipeDemoData(): Promise<void> {
+    const tables = [
+        'flag_events',
+        'motion_events',
+        'audio_events',
+        'trip_summaries',
+        'earnings_velocity_log',
+        'trips',
+        'driver_goals',
+        'drivers'
+    ]
+
+    for (const table of tables) {
+        try {
+            await pool.query(`DELETE FROM ${table}`)
+            console.log(`🗑️  [dev-reset] Cleared ${table}`)
+        } catch (err: any) {
+            console.warn(`⚠️  [dev-reset] Skipped ${table}: ${err.message}`)
+        }
+    }
+
     try {
-        console.log('[dev-reset] Ensuring tables exist and seeding DRV001...');
+        console.log('[dev-reset] Seeding DRV001 and GOAL001...');
         
-        // 1. Ensure minimal tables exist so the demo doesn't crash
+        // 1. Ensure minimal tables exist (just in case they were dropped)
         await pool.query(`
             CREATE TABLE IF NOT EXISTS drivers (
                 driver_id VARCHAR(10) PRIMARY KEY,
@@ -47,7 +67,7 @@ export async function wipeDemoData(): Promise<void> {
             );
         `);
 
-        // 2. Insert or update the required driver
+        // 2. Insert the required driver
         await pool.query(`
             INSERT INTO drivers (
                 driver_id, name, city, shift_preference,
@@ -57,17 +77,9 @@ export async function wipeDemoData(): Promise<void> {
                 'DRV001', 'Alex Kumar', 'Mumbai', 'morning',
                 7.5, 185.00, 18, 4.8
             )
-            ON DUPLICATE KEY UPDATE
-                name = VALUES(name),
-                city = VALUES(city),
-                shift_preference = VALUES(shift_preference),
-                avg_hours_per_day = VALUES(avg_hours_per_day),
-                avg_earnings_per_hr = VALUES(avg_earnings_per_hr),
-                experience_months = VALUES(experience_months),
-                rating = VALUES(rating)
         `);
 
-        // 3. Insert or update the required goal
+        // 3. Insert the required goal
         await pool.query(`
             INSERT INTO driver_goals (
                 goal_id, driver_id, date,
@@ -85,47 +97,11 @@ export async function wipeDemoData(): Promise<void> {
                 'achieved', 'on_track',
                 NOW()
             )
-            ON DUPLICATE KEY UPDATE
-                date = VALUES(date),
-                shift_start_time = VALUES(shift_start_time),
-                shift_end_time = VALUES(shift_end_time),
-                target_earnings = VALUES(target_earnings),
-                target_hours = VALUES(target_hours),
-                current_earnings = VALUES(current_earnings),
-                current_hours = VALUES(current_hours),
-                status = VALUES(status),
-                goal_completion_forecast = VALUES(goal_completion_forecast),
-                updated_at = VALUES(updated_at)
         `);
 
         console.log('✅ [dev-reset] Tables ready, DRV001 seeded successfully.');
     } catch (err: any) {
         console.error('❌ [dev-reset] Failed to verify tables or seed DRV001:', err.message);
-    }
-
-    const tables = [
-        'flag_events',
-        'motion_events',
-        'audio_events',
-        'trip_summaries',
-        'earnings_velocity_log',
-        'trips',
-    ]
-
-    for (const table of tables) {
-        const col = table === 'earnings_velocity_log' ? 'trip_id' : 'trip_id'
-        try {
-            const [result]: any = await pool.query(
-                `DELETE FROM ${table} WHERE ${col} IN (${placeholders})`,
-                DEMO_TRIP_IDS
-            )
-            if (result.affectedRows > 0) {
-                console.log(`🗑️  [dev-reset] Cleared ${result.affectedRows} rows from ${table}`)
-            }
-        } catch (err: any) {
-            // Non-fatal: table may not exist yet, or column name differs
-            console.warn(`⚠️  [dev-reset] Skipped ${table}: ${err.message}`)
-        }
     }
 
     console.log('✅ [dev-reset] Demo data wiped — fresh start!\n')

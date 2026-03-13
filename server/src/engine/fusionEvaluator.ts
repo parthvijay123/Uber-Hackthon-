@@ -33,13 +33,14 @@ export class FusionEvaluator {
     private readonly CONFLICT_WINDOW_S = 15
 
     // Minimum scores to be "significant enough" to generate any flag
-    private readonly MIN_AUDIO_SCORE = 0.40
-    private readonly MIN_MOTION_SCORE = 0.40
+    private readonly MIN_AUDIO_SCORE = 0.30
+    private readonly MIN_MOTION_SCORE = 0.30
 
     evaluate(
         motionEvents: MotionEvent[],
         audioEvents: AudioEvent[],
-        tripId: string
+        tripId: string,
+        driverId: string = 'DRV001'
     ): FlagEvent[] {
 
         // Only flag non-normal motion events above threshold
@@ -74,7 +75,7 @@ export class FusionEvaluator {
                 )
 
                 results.push(
-                    this.buildFlagEvent(tripId, motionEvent, closest, FlagType.conflict_moment)
+                    this.buildFlagEvent(tripId, driverId, motionEvent, closest, FlagType.conflict_moment)
                 )
                 matchedMotionIds.add(motionEvent.event_id)
                 matchedAudioIds.add(closest.event_id)
@@ -85,7 +86,7 @@ export class FusionEvaluator {
         for (const motionEvent of significantMotion) {
             if (!matchedMotionIds.has(motionEvent.event_id)) {
                 results.push(
-                    this.buildFlagEvent(tripId, motionEvent, null, FlagType.motion_only)
+                    this.buildFlagEvent(tripId, driverId, motionEvent, null, FlagType.motion_only)
                 )
             }
         }
@@ -94,7 +95,7 @@ export class FusionEvaluator {
         for (const audioEvent of significantAudio) {
             if (!matchedAudioIds.has(audioEvent.event_id)) {
                 results.push(
-                    this.buildFlagEvent(tripId, null, audioEvent, FlagType.audio_only)
+                    this.buildFlagEvent(tripId, driverId, null, audioEvent, FlagType.audio_only)
                 )
             }
         }
@@ -126,6 +127,7 @@ export class FusionEvaluator {
 
     private buildFlagEvent(
         tripId: string,
+        driverId: string,
         motionEvent: MotionEvent | null,
         audioEvent: AudioEvent | null,
         flagType: FlagType
@@ -191,7 +193,7 @@ export class FusionEvaluator {
         return {
             flag_id: uuid(),
             trip_id: tripId,
-            driver_id: 'DEMO_DRIVER',
+            driver_id: driverId,
             timestamp,
             elapsed_s,
             flag_type: flagType,
