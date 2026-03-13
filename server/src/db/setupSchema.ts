@@ -26,7 +26,7 @@ async function ensureDatabaseExists() {
     }
 }
 
-async function setupSchema() {
+export async function setupSchema() {
     console.log('Starting modular schema setup...');
 
     try {
@@ -39,20 +39,12 @@ async function setupSchema() {
             await pool.query(`DROP TABLE IF EXISTS \`${schema.name}\`;`);
             await pool.query(schema.query);
             console.log(`✅ Table "${schema.name}" created or already exists.`);
-
-            console.log(`\nVerifying schema for "${schema.name}":`);
-            const [rows]: any = await pool.query(`DESCRIBE ${schema.name}`);
-            console.table(rows);
         }
 
         await pool.query('SET FOREIGN_KEY_CHECKS = 1;');
         console.log('\n✅ All schemas processed successfully.');
-        process.exit(0);
     } catch (error: any) {
         console.error('❌ Error during schema setup:', error.message);
-        await pool.query('SET FOREIGN_KEY_CHECKS = 1;');
-        process.exit(1);
+        throw error;
     }
 }
-
-setupSchema();

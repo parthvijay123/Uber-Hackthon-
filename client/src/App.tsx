@@ -8,9 +8,7 @@ import Login from './components/Login'
 import DemoTripPicker from './components/DemoTripPicker'
 import PastTrips from './components/PastTrips'
 
-const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3001/api')
-
-console.log("API_BASE:", API_BASE)
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 
 interface MotionStats {
     total: number

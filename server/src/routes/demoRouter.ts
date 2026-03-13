@@ -58,13 +58,15 @@ interface DemoTripMeta {
     distance_km: number
 }
 
+const TODAY = new Date().toISOString().split('T')[0]
+
 const DEMO_TRIPS: DemoTripMeta[] = [
     {
         trip_id: 'TRIP221',
         label: 'Morning Commute',
         description: 'Route with 3 audio conflict windows and a harsh braking event.',
         start_time: '07:00:00',   // 30 min into shift (shift starts 06:30)
-        date: '2024-02-06',
+        date: TODAY,
         duration_min: 15,
         fare: 320.00,
         distance_km: 12.5,
@@ -74,7 +76,7 @@ const DEMO_TRIPS: DemoTripMeta[] = [
         label: 'Afternoon Run',
         description: 'Longer route with multiple motion events and moderate audio levels.',
         start_time: '09:30:00',   // 3 hrs into shift
-        date: '2024-02-06',
+        date: TODAY,
         duration_min: 20,
         fare: 460.00,
         distance_km: 18.2,
@@ -84,7 +86,7 @@ const DEMO_TRIPS: DemoTripMeta[] = [
         label: 'Evening Peak',
         description: 'Rush-hour trip with elevated motion variability.',
         start_time: '12:00:00',   // 5.5 hrs into shift
-        date: '2024-02-06',
+        date: TODAY,
         duration_min: 20,
         fare: 510.00,
         distance_km: 19.8,
