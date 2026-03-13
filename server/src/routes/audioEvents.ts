@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express'
+import * as fs from 'fs'
 import * as path from 'path'
 import { CsvLoader } from '../loaders/csvLoader'
 import { AudioLoader } from '../loaders/audioLoader'
@@ -7,7 +8,6 @@ import { EventStore } from '../db/eventStore'
 import { AudioBatchWindow, AudioEvent, AudioSample } from '../shared/types'
 
 const router = Router()
-const AUDIO_CSV_PATH = path.join(__dirname, '../data/clean_audio.csv')
 const eventStore = new EventStore()
 
 // ── Local helper: build 30-second AudioBatchWindows ──────────────────────────
@@ -37,7 +37,14 @@ function buildAudioWindows(samples: AudioSample[], windowSizeSeconds: number): A
 // ── processAudioTrip: ONE AudioProcessor instance persists across all windows ─
 function processAudioTrip(tripId: string): AudioEvent[] {
     const csvLoader = new CsvLoader()
-    const audioLoader = new AudioLoader(csvLoader, AUDIO_CSV_PATH)
+    const tripFilePath = path.join(__dirname, `../data/${tripId}_audio_data.csv`)
+
+    if (!fs.existsSync(tripFilePath)) {
+        console.warn(`No audio data file found for trip ${tripId} at ${tripFilePath}`)
+        return []
+    }
+
+    const audioLoader = new AudioLoader(csvLoader, tripFilePath)
     const samples = audioLoader.getForTrip(tripId)
 
     if (samples.length === 0) return []

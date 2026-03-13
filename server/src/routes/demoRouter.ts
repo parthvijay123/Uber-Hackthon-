@@ -96,7 +96,7 @@ const TRIP_LOADERS = new Map<string, { accel: AccelLoader; audio: AudioLoader; p
 const TRIP_CSV_MAP: Record<string, string> = {
     'TRIP221': 'TRIP221',
     'TRIP222': 'TRIP222',
-    'TRIP223': 'TRIP223',
+    'TRIP223': 'TRIP2223',
 }
 
 function getLoaders(tripId: string) {
@@ -104,8 +104,8 @@ function getLoaders(tripId: string) {
 
     const csvLoader = new CsvLoader()
     const csvPrefix = TRIP_CSV_MAP[tripId] ?? tripId
-    const accelPath = path.join(DATA_DIR, `${csvPrefix}_accelerometer_data.csv`)
-    const audioPath = path.join(DATA_DIR, `${csvPrefix}_audio_data.csv`)
+    const accelPath = tripId === 'TRIP223' ? path.join(DATA_DIR, 'TRIP2223_accelerometer_data.csv') : path.join(DATA_DIR, `${csvPrefix}_accelerometer_data.csv`);
+    const audioPath = tripId === 'TRIP223' ? path.join(DATA_DIR, 'TRIP223_audio_data.csv') : path.join(DATA_DIR, `${csvPrefix}_audio_data.csv`);
 
     const accel = new AccelLoader(csvLoader, accelPath)
     const audio = new AudioLoader(csvLoader, audioPath)

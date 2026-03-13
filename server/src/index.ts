@@ -14,12 +14,12 @@ import { exec } from "child_process"
 import util from "util"
 const execAsync = util.promisify(exec)
 
+import * as fs from "fs"
 import * as path from "path"
 
 import { CsvLoader } from "./loaders/csvLoader"
 import { AccelLoader } from "./loaders/accelLoader"
 import { AudioLoader } from "./loaders/audioLoader"
-import { DataPreprocessor } from "./loaders/dataPreprocessor"
 
 const app = express()
 
@@ -67,21 +67,24 @@ app.listen(PORT, async () => {
     // Wipe demo data
     await wipeDemoData()
 
-    // Run preprocessing
-    DataPreprocessor.run()
+    // Run preprocessing - REMOVED AS PER USER REQUEST
+    // DataPreprocessor.run()
 
     const csvLoader = new CsvLoader()
 
-    // FIXED PATHS
-    const accelLoader = new AccelLoader(
-      csvLoader,
-      path.resolve(process.cwd(), "src/data/clean_accelerometer.csv")
-    )
+    const dataDir = path.resolve(process.cwd(), "src/data")
+    
+    // Dynamically list all trip files
+    const accelFiles = fs.readdirSync(dataDir)
+      .filter(f => f.endsWith("_accelerometer_data.csv"))
+      .map(f => path.join(dataDir, f))
+    
+    const audioFiles = fs.readdirSync(dataDir)
+      .filter(f => f.endsWith("_audio_data.csv"))
+      .map(f => path.join(dataDir, f))
 
-    const audioLoader = new AudioLoader(
-      csvLoader,
-      path.resolve(process.cwd(), "src/data/clean_audio.csv")
-    )
+    const accelLoader = new AccelLoader(csvLoader, accelFiles)
+    const audioLoader = new AudioLoader(csvLoader, audioFiles)
 
     const motionTrips = accelLoader.getAvailableTrips()
     const audioTrips = audioLoader.getAvailableTrips()

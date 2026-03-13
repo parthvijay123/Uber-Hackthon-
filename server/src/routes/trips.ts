@@ -12,7 +12,7 @@ router.get('/', (_req: any, res: any) => {
     const accelLoader = new AccelLoader(csvLoader, [
         path.join(DATA_DIR, 'TRIP221_accelerometer_data.csv'),
         path.join(DATA_DIR, 'TRIP222_accelerometer_data.csv'),
-        path.join(DATA_DIR, 'TRIP223_accelerometer_data.csv'),
+        path.join(DATA_DIR, 'TRIP2223_accelerometer_data.csv'),
     ])
     const trips = accelLoader.getAvailableTrips()
     res.json(trips)
