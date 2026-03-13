@@ -7,7 +7,7 @@ import {
     FlagEvent,
     MotionClass,
     MotionEvent,
-} from '../../../shared/types'
+} from '../shared/types'
 
 interface FusionSummary {
     motion_count: number

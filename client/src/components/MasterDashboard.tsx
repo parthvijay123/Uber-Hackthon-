@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import { DriverDashboardData, VelocityLog } from '../../../shared/types'
+import { DriverDashboardData, VelocityLog } from '../shared/types'
 
 interface MasterDashboardProps {
     driverId: string
     onSelectTrip: (tripId: string) => void
     onLayoutUpdate: () => void
+    refreshKey?: number
 }
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'

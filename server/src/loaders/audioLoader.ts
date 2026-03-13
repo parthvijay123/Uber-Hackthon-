@@ -1,5 +1,5 @@
 import { CsvLoader } from './csvLoader'
-import { AudioSample } from '../../../shared/types'
+import { AudioSample } from '../shared/types'
 
 export class AudioLoader {
     private cache: AudioSample[] | null = null

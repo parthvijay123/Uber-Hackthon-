@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express'
+import * as fs from 'fs'
 import * as path from 'path'
 import { CsvLoader } from '../loaders/csvLoader'
 import { AccelLoader } from '../loaders/accelLoader'
@@ -15,22 +16,18 @@ const router = Router()
 // ── Module-level singletons (CSV loaded once at startup, not per-request) ────
 const csvLoader = new CsvLoader()
 const DATA_DIR = path.join(__dirname, '../data')
-const accelLoader = new AccelLoader(
-    csvLoader,
-    [
-        path.join(DATA_DIR, 'TRIP001_accelerometer_data.csv'),
-        path.join(DATA_DIR, 'TRIP002_accelerometer_data.csv'),
-        path.join(DATA_DIR, 'TRIP003_accelerometer_data.csv'),
-    ]
-)
-const audioLoader = new AudioLoader(
-    csvLoader,
-    [
-        path.join(DATA_DIR, 'TRIP001_audio_data.csv'),
-        path.join(DATA_DIR, 'TRIP002_audio_data.csv'),
-        path.join(DATA_DIR, 'TRIP003_audio_data.csv'),
-    ]
-)
+
+// Dynamically list all trip files
+const accelFiles = fs.readdirSync(DATA_DIR)
+    .filter(f => f.endsWith("_accelerometer_data.csv"))
+    .map(f => path.join(DATA_DIR, f))
+
+const audioFiles = fs.readdirSync(DATA_DIR)
+    .filter(f => f.endsWith("_audio_data.csv"))
+    .map(f => path.join(DATA_DIR, f))
+
+const accelLoader = new AccelLoader(csvLoader, accelFiles)
+const audioLoader = new AudioLoader(csvLoader, audioFiles)
 const motionProcessor = new MotionProcessor()
 const audioProcessor = new AudioProcessor()
 const fusionEvaluator = new FusionEvaluator()

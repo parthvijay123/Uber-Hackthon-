@@ -25,7 +25,7 @@ import {
     AudioSample,
     MotionEvent,
     TripAnalysisResult,
-} from '../../../shared/types'
+} from '../shared/types'
 
 // ─── Helper: build 30-second audio batch windows ─────────────────────────────
 
@@ -67,7 +67,7 @@ export class TripProcessor {
         private eventStore: EventStore
     ) { }
 
-    async processTrip(tripId: string): Promise<TripAnalysisResult> {
+    async processTrip(tripId: string, driverId: string = 'DRV001'): Promise<TripAnalysisResult> {
         const start = Date.now()
 
         // Clear stale data from any previous run (idempotency)
@@ -83,7 +83,7 @@ export class TripProcessor {
         ])
 
         // Fusion — correlate overlapping events → FlagEvent[]
-        const flagEvents = this.fusionEvaluator.evaluate(motionEvents, audioEvents, tripId)
+        const flagEvents = this.fusionEvaluator.evaluate(motionEvents, audioEvents, tripId, driverId)
 
         // Persist to EventStore for subsequent reads (no reprocessing needed)
         this.eventStore.saveMany(motionEvents)

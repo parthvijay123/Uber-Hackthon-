@@ -10,6 +10,7 @@
  */
 import { Router, Request, Response } from 'express'
 import * as path from 'path'
+import * as fs from 'fs/promises'
 import { v4 as uuid } from 'uuid'
 import { CsvLoader } from '../loaders/csvLoader'
 import { AccelLoader } from '../loaders/accelLoader'
@@ -19,6 +20,9 @@ import { AudioProcessor } from '../engine/audioProcessor'
 import { FusionEvaluator } from '../engine/fusionEvaluator'
 import { EventStore } from '../db/eventStore'
 import { TripProcessor } from '../workers/tripProcessor'
+import {
+    wipeDemoData
+} from '../db/devReset'
 import {
     insertTripRecord,
     completeTripRecord,
@@ -34,7 +38,7 @@ import {
     TripSummaryRecord,
 } from '../db/dbWriter'
 import pool from '../db/mysqlClient'
-import { FlagEvent, FlagSeverity } from '../../../shared/types'
+import { FlagEvent, FlagSeverity, FlagType } from '../shared/types'
 
 const router = Router()
 const DATA_DIR = path.join(__dirname, '../data')
@@ -58,7 +62,7 @@ const TODAY = new Date().toISOString().split('T')[0]
 
 const DEMO_TRIPS: DemoTripMeta[] = [
     {
-        trip_id: 'TRIP001',
+        trip_id: 'TRIP221',
         label: 'Morning Commute',
         description: 'Route with 3 audio conflict windows and a harsh braking event.',
         start_time: '07:00:00',   // 30 min into shift (shift starts 06:30)
@@ -68,7 +72,7 @@ const DEMO_TRIPS: DemoTripMeta[] = [
         distance_km: 12.5,
     },
     {
-        trip_id: 'TRIP002',
+        trip_id: 'TRIP222',
         label: 'Afternoon Run',
         description: 'Longer route with multiple motion events and moderate audio levels.',
         start_time: '09:30:00',   // 3 hrs into shift
@@ -78,7 +82,7 @@ const DEMO_TRIPS: DemoTripMeta[] = [
         distance_km: 18.2,
     },
     {
-        trip_id: 'TRIP003',
+        trip_id: 'TRIP223',
         label: 'Evening Peak',
         description: 'Rush-hour trip with elevated motion variability.',
         start_time: '12:00:00',   // 5.5 hrs into shift
@@ -93,12 +97,20 @@ const DEMO_TRIPS: DemoTripMeta[] = [
 
 const TRIP_LOADERS = new Map<string, { accel: AccelLoader; audio: AudioLoader; processor: any }>()
 
+// Map from demo trip ID to the actual CSV sensor file prefix
+const TRIP_CSV_MAP: Record<string, string> = {
+    'TRIP221': 'TRIP221',
+    'TRIP222': 'TRIP222',
+    'TRIP223': 'TRIP223',
+}
+
 function getLoaders(tripId: string) {
     if (TRIP_LOADERS.has(tripId)) return TRIP_LOADERS.get(tripId)!
 
     const csvLoader = new CsvLoader()
-    const accelPath = path.join(DATA_DIR, `${tripId}_accelerometer_data.csv`)
-    const audioPath = path.join(DATA_DIR, `${tripId}_audio_data.csv`)
+    const csvPrefix = TRIP_CSV_MAP[tripId] ?? tripId
+    const accelPath = path.join(DATA_DIR, `${csvPrefix}_accelerometer_data.csv`);
+    const audioPath = path.join(DATA_DIR, `${csvPrefix}_audio_data.csv`);
 
     const accel = new AccelLoader(csvLoader, accelPath)
     const audio = new AudioLoader(csvLoader, audioPath)
@@ -108,10 +120,10 @@ function getLoaders(tripId: string) {
     return entry
 }
 
-// One shared EventStore for the demo
+
 const demoEventStore = new EventStore()
 
-// One TripProcessor that is re-created per trip to swap loaders
+
 function buildTripProcessor(tripId: string): TripProcessor {
     const { accel, audio } = getLoaders(tripId)
     return new TripProcessor(
@@ -124,7 +136,16 @@ function buildTripProcessor(tripId: string): TripProcessor {
     )
 }
 
-// ─── GET /api/demo/trips ──────────────────────────────────────────────────────
+router.post('/reset', async (req: Request, res: Response) => {
+    try {
+        await wipeDemoData()
+        console.log('[Demo] Manual reset triggered')
+        res.json({ success: true, message: 'Database reset and seeded for Driver 1' })
+    } catch (err: any) {
+        console.error('[Demo] reset error:', err.message)
+        res.status(500).json({ error: err.message })
+    }
+})
 
 router.get('/trips', async (_req: Request, res: Response) => {
     try {
@@ -145,25 +166,25 @@ router.get('/trips', async (_req: Request, res: Response) => {
     }
 })
 
-// ─── POST /api/demo/:tripId/start ─────────────────────────────────────────────
-
 router.post('/:tripId/start', async (req: Request, res: Response) => {
     const { tripId } = req.params
+    const { driverId } = req.body // Allow dynamic driver ID if provided
+    const targetDriverId = driverId || DRIVER_ID
     const meta = DEMO_TRIPS.find(t => t.trip_id === tripId)
     if (!meta) {
         return res.status(404).json({ error: `Unknown demo trip: ${tripId}` })
     }
 
     try {
-        // Clear any stale in-memory state from a previous run
+
         demoEventStore.clear(tripId)
         demoEventStore.clearAudio(tripId)
         demoEventStore.clearFlags(tripId)
 
-        // Insert trip row (IGNORE if already exists from a previous demo run)
+
         await insertTripRecord({
             trip_id: meta.trip_id,
-            driver_id: DRIVER_ID,
+            driver_id: targetDriverId,
             date: meta.date,
             start_time: meta.start_time,
             fare: meta.fare,
@@ -171,18 +192,18 @@ router.post('/:tripId/start', async (req: Request, res: Response) => {
             dropoff_location: `Demo: ${meta.label} End`,
         })
 
-        console.log(`[Demo] Started trip ${tripId}`)
-        res.json({ success: true, trip_id: tripId, meta })
+        console.log(`[Demo] Started trip ${tripId} for driver ${targetDriverId}`)
+        res.json({ success: true, trip_id: tripId, driver_id: targetDriverId, meta })
     } catch (err: any) {
         console.error('[Demo] start error:', err.message)
         res.status(500).json({ error: err.message })
     }
 })
 
-// ─── POST /api/demo/:tripId/complete ─────────────────────────────────────────
-
 router.post('/:tripId/complete', async (req: Request, res: Response) => {
     const { tripId } = req.params
+    const { driverId } = req.body // Match the driver who started
+    const targetDriverId = driverId || DRIVER_ID
     const meta = DEMO_TRIPS.find(t => t.trip_id === tripId)
     if (!meta) {
         return res.status(404).json({ error: `Unknown demo trip: ${tripId}` })
@@ -197,7 +218,7 @@ router.post('/:tripId/complete', async (req: Request, res: Response) => {
         if (motionEvents.length === 0) {
             console.log(`[Demo] EventStore empty for ${tripId}, running processor now...`)
             const processor = buildTripProcessor(tripId)
-            const result = await processor.processTrip(tripId)
+            const result = await processor.processTrip(tripId, targetDriverId)
             motionEvents = result.motion_events
             audioEvents = result.audio_events
             flagEvents = result.flag_events as FlagEvent[]
@@ -219,12 +240,13 @@ router.post('/:tripId/complete', async (req: Request, res: Response) => {
 
         // 4. Build and write trip summary
         const maxSev = computeMaxSeverity(flagEvents)
-        const stressScore = computeStressScore(flagEvents, motionEvents)
+        const conflictFlags = flagEvents.filter(f => f.flag_type === FlagType.conflict_moment)
+        const stressScore = computeStressScore(conflictFlags, meta.duration_min)
         const earningsVelocity = meta.fare / (meta.duration_min / 60)
 
         const summary: TripSummaryRecord = {
             trip_id: tripId,
-            driver_id: DRIVER_ID,
+            driver_id: targetDriverId,
             date: meta.date,
             duration_min: meta.duration_min,
             distance_km: meta.distance_km,
@@ -232,17 +254,17 @@ router.post('/:tripId/complete', async (req: Request, res: Response) => {
             earnings_velocity: parseFloat(earningsVelocity.toFixed(2)),
             motion_events_count: motionEvents.length,
             audio_events_count: audioEvents.length,
-            flagged_moments_count: flagEvents.length,
+            flagged_moments_count: conflictFlags.length,
             max_severity: maxSev,
             stress_score: parseFloat(stressScore.toFixed(3)),
-            trip_quality_rating: computeTripRating(stressScore, flagEvents.length),
+            trip_quality_rating: computeTripRating(stressScore, conflictFlags.length, meta.duration_min),
         }
         await insertTripSummary(summary)
 
         // 5. Compute and write velocity log row
-        const goal = await getDriverGoal(DRIVER_ID, meta.date)
-        const cumulativeEarnings = await getCumulativeEarnings(DRIVER_ID, meta.date, tripId)
-        const tripsCompleted = await getCompletedTripCount(DRIVER_ID, meta.date)
+        const goal = await getDriverGoal(targetDriverId, meta.date)
+        const cumulativeEarnings = await getCumulativeEarnings(targetDriverId, meta.date, tripId)
+        const tripsCompleted = await getCompletedTripCount(targetDriverId, meta.date)
 
         // Elapsed hours: time from shift start to end of this trip.
         // Guard: never let elapsed be less than the trip's own duration
@@ -263,7 +285,7 @@ router.post('/:tripId/complete', async (req: Request, res: Response) => {
 
         const velocityLog: VelocityLogRecord = {
             log_id: `VL-${tripId}-${Date.now()}`,
-            driver_id: DRIVER_ID,
+            driver_id: targetDriverId,
             goal_id: GOAL_ID,
             trip_id: tripId,
             timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
@@ -277,7 +299,21 @@ router.post('/:tripId/complete', async (req: Request, res: Response) => {
         }
         await appendVelocityLog(velocityLog)
 
-        console.log(`[Demo] Completed ${tripId}: fare=₹${meta.fare}, velocity=${currentVelocity.toFixed(1)}/hr, status=${forecastStatus}`)
+        // 6. Write a showcase JSON log under /Design (for presentations)
+        await writeShowcaseLog({
+            tripMeta: meta,
+            motionEvents,
+            audioEvents,
+            flagEvents,
+            summary,
+            velocity: velocityLog,
+        })
+
+        console.log(
+            `[Demo] Completed ${tripId}: fare=₹${meta.fare}, velocity=${currentVelocity.toFixed(
+                1
+            )}/hr, status=${forecastStatus}`
+        )
 
         res.json({
             success: true,
@@ -295,6 +331,7 @@ router.post('/:tripId/complete', async (req: Request, res: Response) => {
 // This pre-processes using per-trip CSV files and populates demoEventStore.
 router.get('/stream/:tripId', async (req: Request, res: Response) => {
     const { tripId } = req.params
+    const driverId = (req.query.driverId as string) || DRIVER_ID
     const meta = DEMO_TRIPS.find(t => t.trip_id === tripId)
     if (!meta) {
         return res.status(404).json({ error: `Unknown demo trip: ${tripId}` })
@@ -307,9 +344,11 @@ router.get('/stream/:tripId', async (req: Request, res: Response) => {
 
     try {
         const processor = buildTripProcessor(tripId)
-        const result = await processor.processTrip(tripId)
+        const result = await processor.processTrip(tripId, driverId)
 
-        const flags = result.flag_events as FlagEvent[]
+        const flags = (result.flag_events as FlagEvent[]).slice().sort(
+            (a, b) => a.elapsed_s - b.elapsed_s
+        )
 
         if (flags.length === 0) {
             res.write(`data: SUMMARY:${JSON.stringify({
@@ -323,9 +362,20 @@ router.get('/stream/:tripId', async (req: Request, res: Response) => {
             return
         }
 
-        let index = 0
-        const interval = setInterval(() => {
-            if (index >= flags.length) {
+        // Stream flags spaced out in (accelerated) trip-time order so they
+        // appear to happen "in real time" along the trip timeline.
+        const SPEED_FACTOR_MS_PER_TRIP_SEC = 50 // 1s of trip time = 50ms real
+        const MIN_GAP_MS = 250
+
+        let cancelled = false
+        req.on('close', () => {
+            cancelled = true
+        })
+
+        const streamFlag = (idx: number, prevElapsed: number) => {
+            if (cancelled) return
+
+            if (idx >= flags.length) {
                 res.write(`data: SUMMARY:${JSON.stringify({
                     motion_count: result.motion_events.length,
                     audio_count: result.audio_events.length,
@@ -333,15 +383,23 @@ router.get('/stream/:tripId', async (req: Request, res: Response) => {
                     duration_ms: result.duration_ms,
                 })}\n\n`)
                 res.write('data: DONE\n\n')
-                clearInterval(interval)
                 res.end()
                 return
             }
-            res.write(`data: ${JSON.stringify(flags[index])}\n\n`)
-            index++
-        }, 400)
 
-        req.on('close', () => clearInterval(interval))
+            const flag = flags[idx]
+            const deltaTripSeconds = Math.max(0, flag.elapsed_s - prevElapsed)
+            const delayMs = Math.max(MIN_GAP_MS, deltaTripSeconds * SPEED_FACTOR_MS_PER_TRIP_SEC)
+
+            setTimeout(() => {
+                if (cancelled) return
+                res.write(`data: ${JSON.stringify(flag)}\n\n`)
+                streamFlag(idx + 1, flag.elapsed_s)
+            }, delayMs)
+        }
+
+        // Kick off the first flag immediately (with a small minimum delay).
+        streamFlag(0, 0)
     } catch (err: any) {
         console.error('[Demo] stream error:', err.message)
         res.write('data: ERROR\n\n')
@@ -371,20 +429,31 @@ function computeMaxSeverity(flags: FlagEvent[]): 'none' | 'low' | 'medium' | 'hi
     return 'none'
 }
 
-function computeStressScore(flags: FlagEvent[], motionEvents: any[]): number {
-    if (flags.length === 0 && motionEvents.length === 0) return 0
-    const avgFlagScore = flags.length > 0
-        ? flags.reduce((sum, f) => sum + f.combined_score, 0) / flags.length
-        : 0
-    const harshCount = motionEvents.filter((e: any) => e.event_type === 'harsh' || e.event_type === 'collision').length
-    const harshPenalty = Math.min(0.3, harshCount * 0.05)
-    return Math.min(1.0, avgFlagScore + harshPenalty)
+function computeStressScore(conflictFlags: FlagEvent[], tripDurationMin: number): number {
+    // No fused conflict moments = no stress.
+    if (conflictFlags.length === 0 || tripDurationMin <= 0) {
+        return 0
+    }
+
+    const avgConflictScore =
+        conflictFlags.reduce((sum, f) => sum + f.combined_score, 0) / conflictFlags.length
+
+    // Frequency factor: more conflict flags in a shorter trip => higher stress.
+    // Example: 1 flag in 20 min → low factor; 4+ flags in 20 min → factor ~1.
+    const densityPerMin = conflictFlags.length / Math.max(tripDurationMin, 1)
+    const densityFactor = Math.min(1, densityPerMin * 5) // 1 flag every 5min ≈ factor 1
+
+    const rawStress = avgConflictScore * densityFactor
+
+    // Bound to [0, 1] in case combined scores change in future.
+    return Math.min(1.0, rawStress)
 }
 
-function computeTripRating(stressScore: number, flagCount: number): 'excellent' | 'good' | 'fair' | 'poor' {
-    if (stressScore < 0.2 && flagCount <= 1) return 'excellent'
-    if (stressScore < 0.45 && flagCount <= 3) return 'good'
-    if (stressScore < 0.7) return 'fair'
+function computeTripRating(stressScore: number, flagCount: number, durationMin: number): 'excellent' | 'good' | 'fair' | 'poor' {
+    const flagsPerMin = flagCount / Math.max(1, durationMin)
+    if (stressScore < 0.22 && flagsPerMin < 0.12) return 'excellent'
+    if (stressScore < 0.45 && flagsPerMin < 0.30) return 'good'
+    if (stressScore < 0.68) return 'fair'
     return 'poor'
 }
 
@@ -394,6 +463,87 @@ function computeForecastStatus(delta: number, targetVelocity: number): 'ahead' |
     if (pct >= -0.05) return 'on_track'
     if (pct >= -0.2) return 'at_risk'
     return 'behind'
+}
+
+// ─── Showcase JSON log writer ───────────────────────────────────────────────────
+
+async function writeShowcaseLog(payload: {
+    tripMeta: DemoTripMeta
+    motionEvents: any[]
+    audioEvents: any[]
+    flagEvents: FlagEvent[]
+    summary: TripSummaryRecord
+    velocity: VelocityLogRecord
+}): Promise<void> {
+    try {
+        // Design folder lives at repo root: ../../Design from routes directory.
+        const designDir = path.join(__dirname, '../../Design')
+        await fs.mkdir(designDir, { recursive: true })
+
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+        const fileName = `showcase_${payload.tripMeta.trip_id}_${timestamp}.json`
+        const filePath = path.join(designDir, fileName)
+
+        const motionById = new Map<string, any>(
+            payload.motionEvents.map((m: any) => [m.event_id, m])
+        )
+        const audioById = new Map<string, any>(
+            payload.audioEvents.map((a: any) => [a.event_id, a])
+        )
+
+        const enrichedFlags = payload.flagEvents.map((f) => {
+            const motion = f.motion_event_id ? motionById.get(f.motion_event_id) : null
+            const audio = f.audio_event_id ? audioById.get(f.audio_event_id) : null
+
+            let category: string = 'flag'
+            if (motion && audio) {
+                const sustained =
+                    typeof audio.is_sustained === 'boolean' && audio.is_sustained
+                        ? '_sustained_stress'
+                        : ''
+                category = `motion_plus_audio${sustained}`
+            } else if (motion) {
+                category = 'motion_only'
+            } else if (audio) {
+                const sustained =
+                    typeof audio.is_sustained === 'boolean' && audio.is_sustained
+                        ? '_sustained_stress'
+                        : ''
+                category = `audio_only${sustained}`
+            }
+
+            return {
+                ...f,
+                event_category: category,
+                motion_event_type: motion?.event_type ?? null,
+                audio_class: audio?.audio_class ?? null,
+                audio_severity: audio?.severity ?? null,
+                audio_is_sustained: audio?.is_sustained ?? null,
+            }
+        })
+
+        const body = {
+            generated_at: new Date().toISOString(),
+            trip_meta: payload.tripMeta,
+            summary: payload.summary,
+            velocity_snapshot: payload.velocity,
+            counts: {
+                motion_events: payload.motionEvents.length,
+                audio_events: payload.audioEvents.length,
+                flag_events: payload.flagEvents.length,
+            },
+            // For showcase purposes we include full events so they can be
+            // visualized later if needed.
+            motion_events: payload.motionEvents,
+            audio_events: payload.audioEvents,
+            flag_events: enrichedFlags,
+        }
+
+        await fs.writeFile(filePath, JSON.stringify(body, null, 2), 'utf8')
+        console.log('[Demo] Wrote showcase log to', filePath)
+    } catch (err: any) {
+        console.error('[Demo] Failed to write showcase log:', err.message)
+    }
 }
 
 export { demoEventStore }

@@ -4,160 +4,203 @@
 
 Driver Pulse is a system that processes raw driver trip and sensor data to detect unsafe driving events and generate insights about driver behavior. The system identifies events such as harsh braking  and produces structured logs for analysis.
 
-## Features
-
-* Detect harsh braking events
-* Detect harsh turning events
-* Generate structured event logs
-* Process trip sensor data efficiently
-
-## System Architecture
-
-The system processes data through the following pipeline:
-
-Raw Sensor Data
-↓
-Data Processing
-↓
-Event Detection Engine
-↓
-Structured Logs and Insights
-
-## Project Structure
-
-```
-## Project Structure
-
-Driver_pulse/
-│
-├── client/                         # Frontend web application (Vite + TypeScript)
-│   ├── src/                        # Frontend source code
-│   ├── dist/                       # Production build output
-│   ├── index.html                  # Main HTML entry point
-│   ├── package.json                # Frontend dependencies
-│   └── vite.config.ts              # Vite configuration
-│
-├── server/                         # Backend API server
-│   ├── src/                        # Server source code
-│   ├── package.json                # Backend dependencies
-│   └── tsconfig.json               # TypeScript configuration
-│
-├── shared/                         # Shared types between client and server
-│   └── types.ts
-│
-├── driver_pulse_hackathon_data/    # Data processing and simulation logic
-│   ├── sensor_data/                # Raw sensor inputs
-│   ├── processed_outputs/          # Processed data outputs
-│   ├── drivers/                    # Driver-related data
-│   ├── earnings/                   # Earnings data
-│   ├── trips/                      # Trip-level data
-│   │
-│   ├── preprocessor_audio.py
-│   ├── preprocessor_accelerometer.py
-│   ├── simulator_audio.py
-│   ├── simulator_accelerometer.py
-│   │
-│   ├── preprocessing_logic.md
-│   ├── HEURISTIC_SIMULATOR_LOGIC.md
-│   └── DESIGN.md
-│
-└── README.md
-```
-
 ## Setup
 
 ### 1. Clone the repository
 
-```bash
+⁠ bash
 git clone https://github.com/parthvijay123/Uber-Hackthon-
 cd Uber-Hackthon-
-```
+ ⁠
 
 ### 2. Install frontend dependencies
 
-```bash
+⁠ bash
 cd client
 npm install
-```
+ ⁠
 
 ### 3. Install backend dependencies
 
-```bash
+⁠ bash
 cd ../server
 npm install
-```
+ ⁠
 
 ### 4. (Optional) Install Python dependencies for data preprocessing
 
-If you plan to run the preprocessing or simulation scripts inside `driver_pulse_hackathon_data/`, make sure Python 3 is installed.
+If you plan to run the preprocessing or simulation scripts inside ⁠ driver_pulse_hackathon_data/ ⁠, make sure Python 3 is installed.
 
 You can install Python packages using:
 
-```bash
+⁠ bash
 pip3 install pandas numpy
-```
+ ⁠
 
-*(Only required if you run the Python preprocessing scripts.)*
+(Only required if you run the Python preprocessing scripts.)
 
-### 5. Start the backend server
+### 5. Initialize database and start the backend server
 
-```bash
+Run the setup script to create the database, tables, and seed the required minimal data:
+
+⁠ bash
 cd server
+npm run setup
+
+Then start the server:
+
+⁠ bash
 npm run dev
-```
+ ⁠
 
 ### 6. Start the frontend application
 
 Open a new terminal and run:
 
-```bash
+⁠ bash
 cd client
 npm run dev
-```
+ ⁠
 
 ### 7. Open the application
 
 The frontend will typically be available at:
 
-```
+
 http://localhost:5173
-```
+
 
 Open the URL in your browser to access the web dashboard.
 
-## Usage
 
-Place input trip or sensor data inside the `data/` directory and run the program.
-The system will process the data and output detected driving events.
+## Documented Trade-offs
 
-## Output
+### 1. Real-Time Processing vs. Real-Time Display
 
-The system generates structured logs in the `logs/` directory.
+The system prioritizes real-time processing to maintain temporal accuracy while strictly enforcing a no real-time display policy to ensure driver safety.
 
-Example log entry:
+•⁠  ⁠Temporal Correlation
 
-```
-{
-  "timestamp": "2026-03-09T14:05:22",
-  "driver_id": "D102",
-  "event": "harsh_brake",
-  "acceleration": -4.2
-}
-```
+  Processing must occur in real time because the correlation signal between audio and motion decays rapidly.  
+  For example, a passenger argument followed by a harsh brake within 10 seconds is a meaningful co-occurrence that would be lost if processed an hour later.
 
-## Design Decisions
+•⁠  ⁠Zero-Distraction Constraint
 
-* Threshold-based detection is used for identifying harsh driving events.
-* Structured logs are generated to maintain transparency of system decisions.
+  To adhere to a non-negotiable zero-distraction constraint, drivers must not see any system output during the trip.
 
-## Future Improvements
+•⁠  ⁠Safety Hazard Mitigation
 
-* Machine learning based event detection
-* Real-time data streaming
-* Driver analytics dashboard
+  Showing a flag notification while a driver is at high speeds (e.g., 80 km/h*) is considered a safety hazard that would defeat the purpose of the system.
+
+  Therefore, processing runs live, but output is held until the trip ends.
+
+
+
+### 2. Store-and-Forward Pipeline
+
+The system uses a local-first architecture to ensure zero data loss during network instability.
+
+•⁠  ⁠Immediate Local Persistence
+
+  Every ⁠ FlagEvent ⁠ is written to a local MySQL database immediately upon generation with:
+
+  
+⁠   upload_status = PENDING
+   ⁠
+
+•⁠  ⁠Decoupled Network State
+
+  Local writes occur regardless of network state, ensuring the network is never in the critical path of event capture.
+
+•⁠  ⁠Upload Priority
+
+  When connectivity returns, the ⁠ UploadManager ⁠ reads all ⁠ PENDING ⁠ rows ordered by:
+
+  
+⁠   combined_score DESC
+   ⁠
+
+  This ensures high-severity flags are uploaded to the cloud first.
+
+
+
+### 3. CAP Theorem Position: AP
+
+This system is classified as AP (Available and Partition Tolerant).
+
+•⁠  ⁠Edge Independence
+
+  During a network partition, the edge device continues:
+
+  - sampling
+  - processing
+  - storing data locally
+
+•⁠  ⁠Eventual Consistency
+
+  The cloud receives events once connectivity is restored.
+
+•⁠  ⁠High Availability
+
+  The driver’s post-trip summary is served from the local MySQL store, making it always available even if the ⁠ UploadManager ⁠ has not yet drained the queue.
+
+
+
+### 4. Idempotent Writes
+
+Because the system may reprocess data frequently (especially in demo mode), all MySQL writes are designed to be idempotent.
+
+Implementation
+
+
+INSERT IGNORE
+
+
+or
+
+
+ON DUPLICATE KEY UPDATE
+
+
+Applied to Tables
+
+•⁠  ⁠⁠ motion_events ⁠
+•⁠  ⁠⁠ audio_events ⁠
+•⁠  ⁠⁠ flag_events ⁠
+•⁠  ⁠⁠ earnings_velocity_log ⁠
+•⁠  ⁠⁠ trip_summaries ⁠
+
+This prevents duplicate rows from being created during reprocessing.
+
+
+
+### 5. Simulated vs Production-Ready Components
+
+The demo environment uses CSV files as input sources, but the downstream architecture and logic remain identical to production.
+
+| Feature | Simulated (Demo) | Production Implementation |
+|--------|-----------------|--------------------------|
+| *Accelerometer* | CSV data | ⁠ SensorEventListener ⁠ at 50 Hz |
+| *Microphone* | CSV data | ⁠ AudioRecord ⁠ → FFT → dB |
+| *Local Storage* | SQLite + AES-256 | SQLCipher |
+| *Logic Engines* | — | ⁠ MotionProcessor ⁠, ⁠ AudioSpikeTracker ⁠, ⁠ FusionEvaluator ⁠ |
+| *Data Management* | — | ⁠ FlagWriter ⁠ (idempotent), ⁠ UploadManager ⁠ (exponential backoff) |
+| *Analytics* | — | Post-trip velocity pipeline and upload state machine |
+
+
+
+This separation allows realistic demonstrations without requiring live sensors, while keeping the core architecture production-ready.
+## Links to Live Deployment and Live Demo
+
+https://drive.google.com/drive/folders/1EMuYCGrZMq6FU1eAfFlinuo2k1y4zIgu?usp=sharing
+
+https://uber-hackthon-dm6d.vercel.app/
+
 
 ## Contributors
 
-* Yash Mittal
-* Kiranpreet Kaur
-* Parth Vijay
+•⁠  ⁠Yash Mittal
+•⁠  ⁠Kiranpreet Kaur
+•⁠  ⁠Parth Vijay
+
+

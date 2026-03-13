@@ -5,7 +5,7 @@
  * so re-running a trip through the demo does not duplicate rows.
  */
 import pool from './mysqlClient'
-import { MotionEvent, AudioEvent, FlagEvent } from '../../../shared/types'
+import { MotionEvent, AudioEvent, FlagEvent } from '../shared/types'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -61,9 +61,17 @@ export interface VelocityLogRecord {
 
 export async function insertTripRecord(trip: TripRecord): Promise<void> {
     await pool.query(
-        `INSERT IGNORE INTO trips
+        `INSERT INTO trips
            (trip_id, driver_id, date, start_time, fare, surge_multiplier, trip_status, pickup_location, dropoff_location, created_at)
-         VALUES (?, ?, ?, ?, ?, 1.0, 'ongoing', ?, ?, NOW())`,
+         VALUES (?, ?, ?, ?, ?, 1.0, 'ongoing', ?, ?, NOW())
+         ON DUPLICATE KEY UPDATE
+           driver_id       = VALUES(driver_id),
+           date            = VALUES(date),
+           start_time      = VALUES(start_time),
+           fare            = VALUES(fare),
+           trip_status     = 'ongoing',
+           pickup_location = VALUES(pickup_location),
+           dropoff_location= VALUES(dropoff_location)`,
         [
             trip.trip_id,
             trip.driver_id,

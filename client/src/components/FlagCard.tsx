@@ -1,4 +1,4 @@
-import { FlagEvent, FlagType, FlagSeverity } from '../../../shared/types'
+import { FlagEvent, FlagType, FlagSeverity } from '../shared/types'
 
 interface FlagCardProps {
     flag: FlagEvent

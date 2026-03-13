@@ -7,12 +7,12 @@ const router = Router()
 
 const DATA_DIR = path.join(__dirname, '../data')
 
-router.get('/', (_req, res) => {
+router.get('/', (_req: any, res: any) => {
     const csvLoader = new CsvLoader()
     const accelLoader = new AccelLoader(csvLoader, [
-        path.join(DATA_DIR, 'TRIP001_accelerometer_data.csv'),
-        path.join(DATA_DIR, 'TRIP002_accelerometer_data.csv'),
-        path.join(DATA_DIR, 'TRIP003_accelerometer_data.csv'),
+        path.join(DATA_DIR, 'TRIP221_accelerometer_data.csv'),
+        path.join(DATA_DIR, 'TRIP222_accelerometer_data.csv'),
+        path.join(DATA_DIR, 'TRIP2223_accelerometer_data.csv'),
     ])
     const trips = accelLoader.getAvailableTrips()
     res.json(trips)

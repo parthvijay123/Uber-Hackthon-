@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express'
+import * as fs from 'fs'
 import * as path from 'path'
 import { v4 as uuid } from 'uuid'
 import { CsvLoader } from '../loaders/csvLoader'
@@ -6,15 +7,21 @@ import { AccelLoader } from '../loaders/accelLoader'
 import { WindowBuilder } from '../engine/windowBuilder'
 import { MotionProcessor } from '../engine/motionProcessor'
 import { EventStore } from '../db/eventStore'
-import { MotionEvent } from '../../../shared/types'
+import { MotionEvent } from '../shared/types'
 
 const router = Router()
-const CSV_PATH = path.join(__dirname, '../data/clean_accelerometer.csv')
 const eventStore = new EventStore()
 
 function processTrip(tripId: string): MotionEvent[] {
     const csvLoader = new CsvLoader()
-    const accelLoader = new AccelLoader(csvLoader, CSV_PATH)
+    const tripFilePath = path.join(__dirname, `../data/${tripId}_accelerometer_data.csv`)
+
+    if (!fs.existsSync(tripFilePath)) {
+        console.warn(`No accelerometer data file found for trip ${tripId} at ${tripFilePath}`)
+        return []
+    }
+
+    const accelLoader = new AccelLoader(csvLoader, tripFilePath)
     const samples = accelLoader.getForTrip(tripId)
 
     const windowBuilder = new WindowBuilder()

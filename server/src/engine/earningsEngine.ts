@@ -1,6 +1,6 @@
 import fs from 'fs'
 const csvParser = require('csv-parser')
-import { DriverGoal, VelocityLog, PastTripInfo, DriverDashboardData, ForecastStatus } from '../../../shared/types'
+import { DriverGoal, VelocityLog, PastTripInfo, DriverDashboardData, ForecastStatus } from '../shared/types'
 
 export class EarningsLoader {
     private goalsMap = new Map<string, DriverGoal>()
@@ -109,7 +109,7 @@ export class EarningsLoader {
 
                     const confidence = Math.min(tripConf, timeConf)
                     if (confidence < 1) {
-                        finalStatus = 'warming_up'
+                        finalStatus = 'on_track'
                     }
                 }
 
@@ -135,7 +135,7 @@ export class EarningsLoader {
             const tempGoals: DriverGoal[] = []
             fs.createReadStream(this.goalsPath)
                 .pipe(csvParser())
-                .on('data', (row) => {
+                .on('data', (row : any) => {
                     const goal: DriverGoal = {
                         goal_id: row.goal_id,
                         driver_id: row.driver_id,
@@ -161,7 +161,7 @@ export class EarningsLoader {
         return new Promise((resolve, reject) => {
             fs.createReadStream(this.logsPath)
                 .pipe(csvParser())
-                .on('data', (row) => {
+                .on('data', (row : any) => {
                     const log: VelocityLog = {
                         log_id: row.log_id,
                         driver_id: row.driver_id,
