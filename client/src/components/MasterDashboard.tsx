@@ -5,31 +5,39 @@ interface MasterDashboardProps {
     driverId: string
     onSelectTrip: (tripId: string) => void
     onLayoutUpdate: () => void
+    refreshKey: number
 }
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 
-export default function MasterDashboard({ driverId, onSelectTrip, onLayoutUpdate }: MasterDashboardProps) {
+export default function MasterDashboard({ driverId, onSelectTrip, onLayoutUpdate, refreshKey }: MasterDashboardProps) {
     const [data, setData] = useState<DriverDashboardData | null>(null)
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
+        const fetchData = () => {
+            fetch(`${API_BASE}/driver/${driverId}/dashboard`)
+                .then(res => {
+                    if (!res.ok) throw new Error('Data not found')
+                    return res.json()
+                })
+                .then(d => {
+                    setData(d)
+                    setLoading(false)
+                    onLayoutUpdate()
+                })
+                .catch(err => {
+                    console.error(err)
+                    setLoading(false)
+                })
+        }
+
         setLoading(true)
-        fetch(`${API_BASE}/driver/${driverId}/dashboard`)
-            .then(res => {
-                if (!res.ok) throw new Error('Data not found')
-                return res.json()
-            })
-            .then(d => {
-                setData(d)
-                setLoading(false)
-                onLayoutUpdate()
-            })
-            .catch(err => {
-                console.error(err)
-                setLoading(false)
-            })
-    }, [driverId, onLayoutUpdate])
+        fetchData()
+        const interval = setInterval(fetchData, 3000) // Poll every 3 seconds
+
+        return () => clearInterval(interval)
+    }, [driverId, onLayoutUpdate, refreshKey])
 
     if (loading) {
         return <div className="loading-state">Loading dashboard data...</div>
