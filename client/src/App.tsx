@@ -7,7 +7,7 @@ import MasterDashboard from './components/MasterDashboard'
 import Login from './components/Login'
 import DemoTripPicker from './components/DemoTripPicker'
 
-const API_BASE = 'http://localhost:3001/api'
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 
 interface MotionStats {
     total: number
