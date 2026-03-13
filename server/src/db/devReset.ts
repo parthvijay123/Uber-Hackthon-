@@ -23,13 +23,10 @@ export async function wipeDemoData(): Promise<void> {
 
     for (const table of tables) {
         try {
-            await pool.query(
-                `DELETE FROM ${table} WHERE trip_id IN (${placeholders})`,
-                DEMO_TRIP_IDS
-            )
+            await pool.query(`DELETE FROM ${table}`)
+            console.log(`🗑️  [dev-reset] Cleared ${table}`)
         } catch (err: any) {
-            // Non-fatal: table may not exist yet, or column name differs
-            console.warn(`⚠️  [dev-reset] Skipped clearing ${table}: ${err.message}`)
+            console.warn(`⚠️  [dev-reset] Skipped ${table}: ${err.message}`)
         }
     }
 
@@ -70,39 +67,42 @@ export async function wipeDemoData(): Promise<void> {
             );
         `);
 
-        // 2. Insert the driver
+        // 2. Insert the required driver
         await pool.query(`
-            INSERT IGNORE INTO drivers (driver_id, name, city, shift_preference, rating)
-            VALUES ('DRV001', 'Alex Kumar', 'Mumbai', 'morning', 4.9)
+            INSERT INTO drivers (
+                driver_id, name, city, shift_preference,
+                avg_hours_per_day, avg_earnings_per_hr, experience_months, rating
+            )
+            VALUES (
+                'DRV001', 'Alex Kumar', 'Mumbai', 'morning',
+                7.5, 185.00, 18, 4.8
+            )
         `);
 
         // 3. Insert the required goal
-        const today = new Date().toISOString().split('T')[0];
         await pool.query(`
             INSERT INTO driver_goals (
                 goal_id, driver_id, date,
                 shift_start_time, shift_end_time,
                 target_earnings, target_hours,
+                current_earnings, current_hours,
                 status, goal_completion_forecast,
                 updated_at
             )
             VALUES (
-                'GOAL001', 'DRV001', ?,
+                'GOAL001', 'DRV001', '2024-02-06',
                 '06:30:00', '14:30:00',
                 1400.00, 8.0,
-                'in_progress', 'warming_up',
+                1423.00, 7.5,
+                'achieved', 'on_track',
                 NOW()
             )
-            ON DUPLICATE KEY UPDATE 
-                date = VALUES(date), 
-                updated_at = NOW()
-        `, [today]);
+        `);
 
-        console.log('✅ [dev-reset] Seeding successful.');
+        console.log('✅ [dev-reset] Tables ready, DRV001 seeded successfully.');
     } catch (err: any) {
-        console.error('❌ [dev-reset] Seeding error:', err.message);
+        console.error('❌ [dev-reset] Failed to verify tables or seed DRV001:', err.message);
     }
 
     console.log('✅ [dev-reset] Demo data wiped — fresh start!\n')
 }
-
