@@ -20,87 +20,20 @@ export async function wipeDemoData(): Promise<void> {
     ]
 
     for (const table of tables) {
+        const col = table === 'earnings_velocity_log' ? 'trip_id' : 'trip_id'
         try {
-            await pool.query(
-                `DELETE FROM ${table} WHERE trip_id IN (${placeholders})`,
+            const [result]: any = await pool.query(
+                `DELETE FROM ${table} WHERE ${col} IN (${placeholders})`,
                 DEMO_TRIP_IDS
             )
+            if (result.affectedRows > 0) {
+                console.log(`🗑️  [dev-reset] Cleared ${result.affectedRows} rows from ${table}`)
+            }
         } catch (err: any) {
             // Non-fatal: table may not exist yet, or column name differs
-            console.warn(`⚠️  [dev-reset] Skipped clearing ${table}: ${err.message}`)
+            console.warn(`⚠️  [dev-reset] Skipped ${table}: ${err.message}`)
         }
-    }
-
-    try {
-        console.log('[dev-reset] Seeding DRV001 and GOAL001...');
-        
-        // 1. Ensure minimal tables exist (just in case they were dropped)
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS drivers (
-                driver_id VARCHAR(10) PRIMARY KEY,
-                name VARCHAR(100) NOT NULL,
-                city VARCHAR(50) NOT NULL,
-                shift_preference ENUM('morning','evening','full_day') NOT NULL,
-                avg_hours_per_day DECIMAL(4,1),
-                avg_earnings_per_hr DECIMAL(8,2),
-                experience_months SMALLINT,
-                rating DECIMAL(3,1),
-                created_at DATETIME NOT NULL DEFAULT NOW()
-            );
-        `);
-
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS driver_goals (
-                goal_id VARCHAR(10) PRIMARY KEY,
-                driver_id VARCHAR(10) NOT NULL,
-                date DATE NOT NULL,
-                shift_start_time TIME NOT NULL,
-                shift_end_time TIME NOT NULL,
-                target_earnings DECIMAL(10,2) NOT NULL,
-                target_hours DECIMAL(5,2) NOT NULL,
-                current_earnings DECIMAL(10,2) NOT NULL DEFAULT 0,
-                current_hours DECIMAL(5,2) NOT NULL DEFAULT 0,
-                status ENUM('achieved','in_progress','at_risk') NOT NULL DEFAULT 'in_progress',
-                goal_completion_forecast ENUM('ahead','on_track','at_risk','warming_up','achieved') NOT NULL DEFAULT 'warming_up',
-                updated_at DATETIME NOT NULL DEFAULT NOW() ON UPDATE NOW(),
-                created_at DATETIME NOT NULL DEFAULT NOW(),
-                FOREIGN KEY (driver_id) REFERENCES drivers(driver_id)
-            );
-        `);
-
-        // 2. Insert the driver
-        await pool.query(`
-            INSERT IGNORE INTO drivers (driver_id, name, city, shift_preference, rating)
-            VALUES ('DRV001', 'Alex Kumar', 'Mumbai', 'morning', 4.9)
-        `);
-
-        // 3. Insert the required goal
-        const today = new Date().toISOString().split('T')[0];
-        await pool.query(`
-            INSERT INTO driver_goals (
-                goal_id, driver_id, date,
-                shift_start_time, shift_end_time,
-                target_earnings, target_hours,
-                status, goal_completion_forecast,
-                updated_at
-            )
-            VALUES (
-                'GOAL001', 'DRV001', ?,
-                '06:30:00', '14:30:00',
-                1400.00, 8.0,
-                'in_progress', 'warming_up',
-                NOW()
-            )
-            ON DUPLICATE KEY UPDATE 
-                date = VALUES(date), 
-                updated_at = NOW()
-        `, [today]);
-
-        console.log('✅ [dev-reset] Seeding successful.');
-    } catch (err: any) {
-        console.error('❌ [dev-reset] Seeding error:', err.message);
     }
 
     console.log('✅ [dev-reset] Demo data wiped — fresh start!\n')
 }
-

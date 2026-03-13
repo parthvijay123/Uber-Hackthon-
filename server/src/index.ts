@@ -7,7 +7,6 @@ import fusionRoutes, { createFlagsRouter } from './routes/fusion'
 import earningsRouter from './routes/earnings'
 import demoRouter from './routes/demoRouter'
 import { wipeDemoData } from './db/devReset'
-import { setupSchema } from './db/setupSchema'
 import * as path from 'path'
 import { CsvLoader } from './loaders/csvLoader'
 import { AccelLoader } from './loaders/accelLoader'
@@ -15,21 +14,10 @@ import { AudioLoader } from './loaders/audioLoader'
 import { DataPreprocessor } from './loaders/dataPreprocessor'
 
 const app = express()
-const PORT = process.env.PORT || 3001
+const PORT = 3001
 
-// Enable CORS for all origins for easier testing during hackathon
-app.use(cors())
+app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:5174'] }))
 app.use(express.json())
-
-// Health check endpoint
-app.get('/api/health', async (req, res) => {
-    try {
-        const [result]: any = await pool.query('SELECT 1 + 1 AS result');
-        res.json({ status: 'ok', database: 'connected', test: result[0].result });
-    } catch (err: any) {
-        res.status(500).json({ status: 'error', database: 'disconnected', error: err.message });
-    }
-});
 
 app.use('/api/trips', tripsRouter)
 app.use('/api/motion', motionEventsRouter)
@@ -40,19 +28,27 @@ app.use('/api/driver', earningsRouter)
 app.use('/api/demo', demoRouter)
 
 app.listen(PORT, async () => {
-    try {
-        console.log(`\nInitializing database on Railway...`);
-        // 1. Create all tables if they don't exist
-        await setupSchema()
-        
-        // 2. Wipe demo data and seed DRV001/GOAL001 for a clean test slate
-        await wipeDemoData()
+    // Wipe demo data on every dev restart for a clean test slate
+    await wipeDemoData()
 
-        console.log(`\n🚗 Driver Pulse Server ready on :${PORT}`)
-        console.log(`⚡ Fusion endpoint: /api/fusion/:tripId`)
-    } catch (err: any) {
-        console.error(`❌ Server initialization failed:`, err.message);
-    }
+    // RUN PREPROCESSOR BEFORE INITIALIZING LOADERS
+    DataPreprocessor.run()
+
+    const csvLoader = new CsvLoader()
+    const accelLoader = new AccelLoader(
+        csvLoader,
+        path.join(__dirname, 'data/clean_accelerometer.csv')
+    )
+    const audioLoader = new AudioLoader(
+        csvLoader,
+        path.join(__dirname, 'data/clean_audio.csv')
+    )
+    const motionTrips = accelLoader.getAvailableTrips()
+    const audioTrips = audioLoader.getAvailableTrips()
+    console.log(`🚗 Driver Pulse Server ready on :${PORT}`)
+    console.log(`📊 Available trips (motion): ${motionTrips.join(', ')}`)
+    console.log(`🎵 Available trips (audio):  ${audioTrips.join(', ')}`)
+    console.log(`⚡ Fusion endpoint: /api/fusion/:tripId`)
 })
 
 export default app

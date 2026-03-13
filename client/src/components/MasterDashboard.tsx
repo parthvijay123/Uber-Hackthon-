@@ -7,7 +7,7 @@ interface MasterDashboardProps {
     onLayoutUpdate: () => void
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+const API_BASE = 'http://localhost:3001/api'
 
 export default function MasterDashboard({ driverId, onSelectTrip, onLayoutUpdate }: MasterDashboardProps) {
     const [data, setData] = useState<DriverDashboardData | null>(null)
