@@ -7,7 +7,7 @@ import audioRoutes from './routes/audioEvents'
 import fusionRoutes, { createFlagsRouter } from './routes/fusion'
 import earningsRouter from './routes/earnings'
 import demoRouter from './routes/demoRouter'
-import { wipeDemoData } from './db/devReset'
+import { wipeDemoData, seedDemoProfile } from './db/devReset'
 import { setupSchema } from './db/setupSchema'
 import * as path from 'path'
 import { CsvLoader } from './loaders/csvLoader'
@@ -45,11 +45,14 @@ app.listen(PORT, async () => {
         console.log(`\nInitializing database on Railway...`);
         // 1. Create all tables if they don't exist
         await setupSchema()
-        
-        // 2. Wipe demo data and seed DRV001/GOAL001 for a clean test slate
+
+        // 2. Seed demo driver and goal so dashboard can load immediately
+        await seedDemoProfile()
+
+        // 3. Wipe demo trip data for a clean slate
         await wipeDemoData()
 
-        // 3. RUN PREPROCESSOR BEFORE INITIALIZING LOADERS (only in dev or if files missing)
+        // 4. RUN PREPROCESSOR (optional, commented out) BEFORE INITIALIZING LOADERS (only in dev or if files missing)
         // DataPreprocessor.run()
 
         console.log(`\n🚗 Driver Pulse Server ready on :${PORT}`)
