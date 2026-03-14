@@ -92,7 +92,7 @@ export class EarningsLoader {
                     previousWasAtRisk = false
                 }
 
-                let finalStatus = rawStatus
+                let finalStatus: ForecastStatus = rawStatus
                 if (rawStatus === 'at_risk' && !isActuallyAtRisk) {
                     finalStatus = 'on_track'
                 }
@@ -135,7 +135,7 @@ export class EarningsLoader {
             const tempGoals: DriverGoal[] = []
             fs.createReadStream(this.goalsPath)
                 .pipe(csvParser())
-                .on('data', (row) => {
+                .on('data', (row: Record<string, string>) => {
                     const goal: DriverGoal = {
                         goal_id: row.goal_id,
                         driver_id: row.driver_id,
@@ -161,7 +161,7 @@ export class EarningsLoader {
         return new Promise((resolve, reject) => {
             fs.createReadStream(this.logsPath)
                 .pipe(csvParser())
-                .on('data', (row) => {
+                .on('data', (row: Record<string, string>) => {
                     const log: VelocityLog = {
                         log_id: row.log_id,
                         driver_id: row.driver_id,

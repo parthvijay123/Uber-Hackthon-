@@ -1,5 +1,6 @@
-import express from 'express'
+import express, { Request, Response } from 'express'
 import cors from 'cors'
+import pool from './db/mysqlClient'
 import tripsRouter from './routes/trips'
 import motionEventsRouter from './routes/motionEvents'
 import audioRoutes from './routes/audioEvents'
@@ -22,7 +23,7 @@ app.use(cors())
 app.use(express.json())
 
 // Health check endpoint
-app.get('/api/health', async (req, res) => {
+app.get('/api/health', async (_req: Request, res: Response) => {
     try {
         const [result]: any = await pool.query('SELECT 1 + 1 AS result');
         res.json({ status: 'ok', database: 'connected', test: result[0].result });

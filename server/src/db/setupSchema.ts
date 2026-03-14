@@ -1,7 +1,7 @@
 import pool from './mysqlClient';
 import { schemas } from './schemas';
 
-async function setupSchema() {
+export async function setupSchema(): Promise<void> {
     console.log('Starting modular schema setup...');
 
     try {
@@ -16,11 +16,13 @@ async function setupSchema() {
         }
 
         console.log('\n✅ All schemas processed successfully.');
-        process.exit(0);
     } catch (error: any) {
         console.error('❌ Error during schema setup:', error.message);
-        process.exit(1);
+        throw error;
     }
 }
 
-setupSchema();
+// Run as CLI when executed directly (npm run db-setup)
+if (require.main === module) {
+    setupSchema().then(() => process.exit(0)).catch(() => process.exit(1));
+}

@@ -11,19 +11,19 @@
     "db-setup": "ts-node src/db/setupSchema.ts"
   },
   "dependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.0",
+    "@types/uuid": "^9.0.7",
     "cors": "^2.8.5",
     "csv-parser": "^3.2.0",
     "dotenv": "^17.3.1",
     "express": "^4.18.2",
     "mysql2": "^3.19.1",
+    "typescript": "^5.3.3",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
-    "@types/cors": "^2.8.17",
-    "@types/express": "^4.17.21",
-    "@types/node": "^20.11.0",
-    "@types/uuid": "^9.0.7",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^5.3.3"
+    "ts-node-dev": "^2.0.0"
   }
 }

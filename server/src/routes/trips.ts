@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, Request, Response } from 'express'
 import * as path from 'path'
 import { CsvLoader } from '../loaders/csvLoader'
 import { AccelLoader } from '../loaders/accelLoader'
@@ -7,7 +7,7 @@ const router = Router()
 
 const DATA_DIR = path.join(__dirname, '../data')
 
-router.get('/', (_req, res) => {
+router.get('/', (_req: Request, res: Response) => {
     const csvLoader = new CsvLoader()
     const accelLoader = new AccelLoader(csvLoader, [
         path.join(DATA_DIR, 'TRIP001_accelerometer_data.csv'),
